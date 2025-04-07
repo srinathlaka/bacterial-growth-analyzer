@@ -1,6 +1,8 @@
 # 🧪 Bacterial Growth Analyzer
 
-A modular **Streamlit-based web application** designed for analyzing bacterial growth using optical density (OD) measurements. This tool provides a complete pipeline from file upload and background subtraction to growth model fitting and visualization.
+A modular **Streamlit-based web application** designed for analyzing bacterial growth using optical density (OD) measurements. 
+This tool provides a complete pipeline from file upload and background subtraction to growth model fitting and visualization, 
+with both manual and automatic phase detection methods.
 
 ---
 
@@ -8,12 +10,13 @@ A modular **Streamlit-based web application** designed for analyzing bacterial g
 
 ✅ Upload OD data from 24, 84, 96, or 1536-well plate formats  
 ✅ Interactive microplate layout with well selection  
-✅ Group-based background subtraction  
+✅ Group-based background subtraction (supports multiple groups)  
 ✅ Group-wise operations (Addition, Subtraction, Multiplication, Division)  
-✅ Manual and automatic phase fitting  
-✅ Custom ODE model fitting  
+✅ Manual and automatic phase detection (threshold + slope methods)  
+✅ Nonlinear curve fitting with Logistic, Gompertz, and Exponential models  
+✅ Custom ODE solver integration possible  
 ✅ Confidence intervals & standard deviation plots  
-✅ Exportable plots and results
+✅ Exportable plots and results (CSV/Excel format)
 
 ---
 
@@ -48,18 +51,18 @@ streamlit run app.py
 
 ```
 bacterial-growth-analyzer/
-├── app.py                # Main Streamlit app
-├── assets/               # Example Excel files and images
-├── data/                 # Temporary/user-uploaded data
-├── utils/                # Modular helper files
-│   ├── layout.py
-│   ├── file_io.py
-│   ├── background.py
-│   ├── operations.py
-│   ├── fitting.py
-│   ├── models.py
-│   ├── plotting.py
-│   └── auto_phase.py
+├── app.py                  # Main Streamlit app (UI and workflow)
+├── assets/                 # Example Excel files and layout images
+├── data/                   # Temporary/user-uploaded data
+├── utils/                  # Modular logic split into utility files
+│   ├── file_io.py          # File parsing and layout selection
+│   ├── layout.py           # UI layout for button grid of wells
+│   ├── background.py       # Background subtraction logic
+│   ├── operations.py       # Math operations across groups
+│   ├── fitting.py          # Curve fitting and parameter setup
+│   ├── models.py           # Growth models: logistic, gompertz, exponential
+│   ├── plotting.py         # Plotly-based visualizations
+│   └── auto_phase.py       # Phase detection and CI overlays
 ├── .gitignore
 ├── requirements.txt
 ├── LICENSE
@@ -72,33 +75,28 @@ bacterial-growth-analyzer/
 
 ### Step-by-Step Workflow
 
-1. **Upload** a CSV file with time and OD values from your microplate reader.
-2. **Select layout** (e.g., 96-well).
-3. **Pick wells** for blank/background subtraction.
-4. **Choose sample wells** and apply subtraction/group operation.
-5. **Fit models** to each group or phase:
-   - Logistic, Gompertz, Exponential, or Custom ODEs
-6. **View plots** with confidence intervals (CI) and standard deviation (SD).
-7. **Export** your results or use them for further analysis.
+1. **Upload** your OD data in `.csv` or `.xlsx` format.
+2. **Select plate layout** and preview time series.
+3. **Choose blank and sample wells** for each group.
+4. **Subtract background** within groups.
+5. **Apply group operations** (if needed).
+6. **Fit models** per group or well (manual phase selection or automatic detection).
+7. **View results with CI/SD**, export plots or table of parameters.
 
 ---
 
 ## 📷 Screenshots
 
-> Add screenshots here showing:
-> - File upload
-> - Plate layout
-> - Phase fitting
-> - CI & SD plots
+> _Coming soon_ — visualize layout selection, phase highlighting, and fit diagnostics.
 
 ---
 
 ## 🔬 Applications
 
-- Bacterial growth analysis
-- Antibiotic resistance studies
-- Microbial dynamics research
-- Time series OD analysis in experimental biology
+- Bacterial growth curve analysis
+- Antibiotic resistance and inhibition zone profiling
+- Biotech assay optimization
+- Experimental biology OD/time-series modeling
 
 ---
 
@@ -109,6 +107,7 @@ bacterial-growth-analyzer/
 - [Pandas](https://pandas.pydata.org/)
 - [SciPy](https://scipy.org/)
 - [Plotly](https://plotly.com/python/)
+- [Ruptures](https://centre-borelli.github.io/ruptures-docs/) (for change point detection)
 
 ---
 
@@ -120,7 +119,7 @@ This project is licensed under the **MIT License**. See [LICENSE](LICENSE) for d
 
 ## 🤝 Contributing
 
-Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
+Pull requests are welcome! For major changes, please open an issue first to discuss what you'd like to propose or add.
 
 ---
 
@@ -128,5 +127,5 @@ Pull requests are welcome! For major changes, please open an issue first to disc
 
 **Srinath Laka**  
 Master’s in Scientific Instrumentation | Ernst Abbe Hochschule (EAH) Jena  
-📧 Email: *optional*  
-🌍 Project: [GitHub Repo Link](https://github.com/srinathlaka/bacterial-growth-analyzer)
+🌍 GitHub: [srinathlaka](https://github.com/srinathlaka)  
+📧 Email: srinathlaka1@gmail.com
