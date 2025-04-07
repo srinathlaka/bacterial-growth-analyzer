@@ -15,7 +15,7 @@ def display_tab_growth_models():
         image = Image.open(image_path)
         st.image(image, caption="Example: Growth Model Visualization", width=600)
     else:
-        st.warning("Image file 'f1.png' not found in the 'assests' folder.")
+        st.warning("Image file 'f1.png' not found in the 'assets' folder.")
 
     st.write("## Exponential Growth Model")
     st.write("The exponential growth model is described by the following equations:")
