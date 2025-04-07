@@ -163,7 +163,7 @@ def create_button_layout(rows, columns, labels, key_prefix, df=None):
             st.session_state[f"{key_prefix}_selected_cols"].clear()
             st.session_state[f"{key_prefix}_manual_deselected"].clear()
             st.success("✅ Selection cleared!")
-            st.experimental_rerun()
+            st. rerun
 
     selected_wells=sorted(st.session_state[f"{key_prefix}_selected_wells"])
     if selected_wells:
