@@ -283,46 +283,48 @@ def display_single_well_preview(df, well_name):
         st.write("No well selected for preview.")
 
 
-def plot_avg_sd_bg_subtracted(group_df, sample_wells, group_num):
+def plot_avg_sd_bg_subtracted(data, wells, group_num):
     """
-    Plot the average and standard deviation of background-subtracted data for a specified group.
+    Plots the average and standard deviation of background-subtracted data.
 
     Parameters:
-    - group_df (pd.DataFrame): DataFrame containing background-subtracted data.
-    - sample_wells (list): List of sample well column names.
-    - group_num (int): Group number (for labeling purposes).
-
-    This function calculates the average and standard deviation for the selected sample wells
-    and then creates a Plotly figure to display the data along with the standard deviation band.
+    - data: DataFrame containing the background-subtracted data.
+    - wells: List of wells to include in the plot.
+    - group_num: Integer representing the group number (used for unique keys).
     """
-    if len(sample_wells) > 0:
-        avg_data = group_df[sample_wells].mean(axis=1)
-        std_dev = group_df[sample_wells].std(axis=1)
+    # Calculate average and standard deviation
+    avg_data = data[wells].mean(axis=1)
+    std_data = data[wells].std(axis=1)
 
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=group_df['Time'],
-            y=avg_data,
-            mode='lines',
-            name=f'Group {group_num} Average'
-        ))
+    # Create the figure
+    fig = go.Figure()
 
-        fig.add_trace(go.Scatter(
-            x=group_df['Time'].tolist() + group_df['Time'].tolist()[::-1],
-            y=(avg_data - std_dev).tolist() + (avg_data + std_dev).tolist()[::-1],
-            fill='toself',
-            fillcolor='rgba(144, 238, 144, 0.3)',
-            line=dict(color='rgba(255, 255, 255, 0)'),
-            hoverinfo="skip",
-            showlegend=True,
-            name='Standard Deviation'
-        ))
+    # Add average line
+    fig.add_trace(go.Scatter(
+        x=data.index,
+        y=avg_data,
+        mode='lines',
+        name=f'Group {group_num} Average'
+    ))
 
-        fig.update_layout(
-            title=f'Average and Standard Deviation for Background-Subtracted Data (Group {group_num})',
-            xaxis_title='Time',
-            yaxis_title='OD',
-            legend_title='Legend',
-            template='plotly_white'
-        )
-        st.plotly_chart(fig)
+    # Add shaded area for standard deviation
+    fig.add_trace(go.Scatter(
+        x=list(data.index) + list(data.index[::-1]),
+        y=list(avg_data + std_data) + list((avg_data - std_data)[::-1]),
+        fill='toself',
+        fillcolor='rgba(0,100,200,0.2)',
+        line=dict(color='rgba(255,255,255,0)'),
+        name=f'Group {group_num} Std Dev'
+    ))
+
+    # Update layout
+    fig.update_layout(
+        title=f'Background-Subtracted Data (Group {group_num})',
+        xaxis_title='Time',
+        yaxis_title='Optical Density (OD)',
+        template='plotly_white'
+    )
+
+    # Generate a truly unique key using uuid
+    unique_key = f"plot_avg_sd_group_{group_num}_{uuid.uuid4()}"
+    st.plotly_chart(fig, key=unique_key)
