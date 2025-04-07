@@ -121,13 +121,33 @@ def display_tab_ode_analysis():
                 if parse_failed:
                     st.error("One or more ODE expressions could not be parsed.")
                 else:
-                    def ode_system(t,y,param_vec):
-                        return [fun(t,y,param_vec) for fun in ode_funcs]
+                    def ode_system(t, y, param_vec):
+                        """
+                        Defines the ODE system for the solver.
+
+                        Parameters:
+                        - t: Time variable.
+                        - y: State variables.
+                        - param_vec: Parameter vector.
+
+                        Returns:
+                        - List of derivatives for the ODE system.
+                        """
+                        return [fun(t, y, param_vec) for fun in ode_funcs]
 
                     def cost_function(param_vec):
+                        """
+                        Cost function for optimization.
+
+                        Parameters:
+                        - param_vec: Parameter vector to optimize.
+
+                        Returns:
+                        - Sum of squared residuals between observed and modeled data.
+                        """
                         from scipy.integrate import solve_ivp
-                        sol=solve_ivp(
-                            fun=lambda t,yy: ode_system(t,yy,param_vec),
+                        sol = solve_ivp(
+                            fun=lambda t, yy: ode_system(t, yy, param_vec),
                             t_span=(sub_data["Time"].values[0], sub_data["Time"].values[-1]),
                             y0=fit["initial_conditions"],
                             t_eval=sub_data["Time"].values,
@@ -135,9 +155,9 @@ def display_tab_ode_analysis():
                         )
                         if not sol.success:
                             return 1e10
-                        x_model=sol.y[0]
-                        x_obs=sub_data["Average"].values
-                        return np.sum((x_obs - x_model)**2)
+                        x_model = sol.y[0]
+                        x_obs = sub_data["Average"].values
+                        return np.sum((x_obs - x_model) ** 2)
 
                     fit_button_key=f"btn_fit_{fit_id}"
                     pressed_fit_button=st.button(f"Fit ODE (Fit {i+1})", key=fit_button_key)
@@ -183,7 +203,6 @@ def display_tab_ode_analysis():
                                 dof=N-k_
                                 sigma2=SSR/dof if dof>0 else SSR
 
-                                import numpy as np
                                 J=np.zeros((N,k_))
                                 eps=1e-6
                                 for j in range(k_):

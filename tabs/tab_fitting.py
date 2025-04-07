@@ -143,7 +143,6 @@ def display_tab_fitting():
 
 
 def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
-    import json
     from utils.fitting import compute_confidence_intervals
     from utils.plotting import plot_fitted_curves, plot_confidence_intervals
     from scipy.optimize import curve_fit
@@ -194,7 +193,6 @@ def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
                 continue
 
             from scipy.optimize import curve_fit
-            import numpy as np
 
             try:
                 if bounds:
@@ -277,7 +275,6 @@ def _display_existing_phases(operated_data, selected_operated_wells):
     from utils.fitting import compute_confidence_intervals
     from scipy.optimize import curve_fit
     from scipy.stats import t as t_dist
-    import numpy as np
 
     for i, phase in enumerate(st.session_state.get("phases", [])):
         if "id" not in phase:

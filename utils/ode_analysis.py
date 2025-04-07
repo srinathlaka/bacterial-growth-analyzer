@@ -53,7 +53,6 @@ def compute_ode_ci_for_X(ode_system_func, param_values, param_cov, y0, t_eval, a
     nominal_X=sol_nom.y[0]
     n_time=len(t_eval)
     n_params=len(param_values)
-    import numpy as np
     grad_X=np.zeros((n_time, n_params))
     for j in range(n_params):
         dp=np.zeros_like(param_values)
