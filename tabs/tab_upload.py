@@ -16,7 +16,7 @@ def display_tab_upload():
     Tab 1: Upload and Inspect Data. Lets user pick layout, upload file, 
     see raw data, and manually select wells for preview.
     """
-    st.header("📁 Upload and Inspect Data")
+    st.header("📁 Raw Data Plotting")
 
     # Layout selection
     rows, columns = _select_layout()
@@ -42,7 +42,7 @@ def display_tab_upload():
         st.info("Please upload a file to continue.")
 
     if df is not None:
-        st.subheader("🔬 Select Wells to Plot Manually")
+        st.subheader("🔬 Select Wells to Plot")
         selected_wells = create_button_layout(rows, columns, labels, key_prefix="tab1_wells", df=df)
         if selected_wells:
             st.success(f"✅ Selected Wells: {', '.join(selected_wells)}")
@@ -112,7 +112,7 @@ def _display_example_and_images():
         st.dataframe(sample_file)
 
     with col_right:
-        st.subheader("Plate Reader Layout")
+        st.subheader("Example of 96-well Plate Reader Layout")
         if os.path.exists(default_layout_image_path):
             default_image = Image.open(default_layout_image_path)
             max_width, max_height = 500, 500

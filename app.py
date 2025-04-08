@@ -14,8 +14,8 @@ def main():
     """
     Main entry point that creates seven tabs for the bacterial growth app.
     """
-    st.set_page_config(page_title="Bacterial Growth Analysis", page_icon="🔬", layout="wide")
-    st.markdown("<h1 style='text-align: center; color: #4CAF50;'>Bacterial Growth Analysis</h1>", unsafe_allow_html=True)
+    st.set_page_config(page_title="Bacterial Growth Analysis Toolbox", page_icon="🔬", layout="wide")
+    st.markdown("<h1 style='text-align: center; color: #4CAF50;'>Bacterial Growth Analysis Toolbox</h1>", unsafe_allow_html=True)
 
     # Create seven tabs
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([

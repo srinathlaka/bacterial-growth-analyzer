@@ -304,7 +304,15 @@ def _display_existing_phases(operated_data, selected_operated_wells):
 
                 phase["model"] = st.selectbox(
                     f"Select Model for Fit {i+1}",
-                    ["Exponential Growth","Logistic Growth","Baranyi Growth","Lag-Exponential-Saturation Growth","Custom Function","Automatic Fit"],
+                    [
+                        "Exponential Growth",
+                        "Logistic Growth",
+                        "Baranyi Growth",
+                        "Lag-Exponential-Saturation Growth",
+                        "Gompertz Growth",  # Add Gompertz Growth here
+                        "Custom Function",
+                        "Automatic Fit"
+                    ],
                     key=f"model_{i}"
                 )
                 if phase["model"] == "Custom Function":
@@ -325,7 +333,9 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                     st.info("Automatic Fit: evaluating candidate models.")
                     best_model, best_popt, best_pcov, best_aic, best_candidate = None,None,None,np.inf,None
                     from utils.models import MODEL_FUNCTIONS, MODEL_PARAMS, default_guesses
-                    for candidate in [m for m in MODEL_FUNCTIONS.keys() if m not in ["Custom Function","Automatic Fit"]]:
+
+                    # Add Gompertz Growth to the list of candidate models
+                    for candidate in [m for m in MODEL_FUNCTIONS.keys() if m not in ["Custom Function", "Automatic Fit"]]:
                         try:
                             cf_model_func = MODEL_FUNCTIONS[candidate]
                             guesses = default_guesses.get(candidate, [1.0]*len(MODEL_PARAMS.get(candidate,[])))

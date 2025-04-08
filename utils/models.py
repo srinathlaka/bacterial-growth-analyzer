@@ -19,12 +19,25 @@ def baranyi_growth(t, X0, mu, q0):
 def lag_exponential_saturation_growth(t, mu, X0, q0, K):
     return X0*(1+q0*np.exp(mu*t)) / (1+q0 - q0*(X0/K)+(q0*X0/K)*np.exp(mu*t))
 
+def gompertz_growth(t, A, B, C):
+    """
+    Gompertz model equation:
+    y(t) = A * exp(-exp(B * (C - t)))
+    :param t: Time
+    :param A: Asymptote (maximum value)
+    :param B: Growth rate
+    :param C: Time at the inflection point
+    :return: Growth value at time t
+    """
+    return A * np.exp(-np.exp(B * (C - t)))
+
 # For lines referencing "MODEL_PARAMS" "MODEL_FUNCTIONS" "default_guesses" etc.:
 default_guesses={
     "Exponential Growth":[0.1,1.0],
     "Logistic Growth":[0.1,1.0,2.0],
     "Baranyi Growth":[1.0,0.1,0.1],
-    "Lag-Exponential-Saturation Growth":[0.1,1.0,0.1,2.0]
+    "Lag-Exponential-Saturation Growth":[0.1,1.0,0.1,2.0],
+    "Gompertz Growth": [1.0, 0.1, 1.0]  # Example initial guesses for A, B, C
 }
 
 MODEL_PARAMS={
@@ -34,6 +47,7 @@ MODEL_PARAMS={
     "Logistic Growth":["mu","X0","K"],
     "Baranyi Growth":["X0","mu","q0"],
     "Lag-Exponential-Saturation Growth":["mu","X0","q0","K"],
+    "Gompertz Growth": ["A", "B", "C"],
     "Custom Function":[],
     "Automatic Fit":[]
 }
@@ -43,6 +57,7 @@ MODEL_FUNCTIONS={
     "Logistic Growth":logistic_growth,
     "Baranyi Growth":baranyi_growth,
     "Lag-Exponential-Saturation Growth":lag_exponential_saturation_growth,
+    "Gompertz Growth": gompertz_growth,
     "Custom Function":None,
     "Automatic Fit":None
 }

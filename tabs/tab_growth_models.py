@@ -58,3 +58,18 @@ def lag_exponential_saturation_growth(t, mu, X0, q0, K):
     return X0 * (1 + q0 * np.exp(mu * t)) / (1 + q0 - q0 * (X0 / K) + (q0 * X0 / K) * np.exp(mu * t))
 """)
     st.write("where x0 is the initial biomass at time 0, etc...")
+
+    st.write("## Gompertz Growth Model")
+    st.write("The Gompertz growth model is a sigmoid function used to describe bacterial growth. It is defined by the following differential equation:")
+    st.latex(r'\frac{dX}{dt} = -B \cdot X \cdot \ln\left(\frac{X}{A}\right)')
+    st.write("The solution to this differential equation is:")
+    st.latex(r'X(t) = A \cdot e^{-e^{B \cdot (C - t)}}')
+    st.code("""
+def gompertz_growth(t, A, B, C):
+    return A * np.exp(-np.exp(B * (C - t)))
+""")
+    st.write("where:")
+    st.write("- **A**: The asymptote (maximum value).")
+    st.write("- **B**: The growth rate.")
+    st.write("- **C**: The time at the inflection point.")
+    st.write("- **t**: Time.")

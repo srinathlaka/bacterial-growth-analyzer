@@ -184,8 +184,9 @@ def display_tab_background():
                         display_single_well_preview(df, selected_blank_wells[-1])
 
                 if selected_blank_wells:
-                    st.subheader(f"Fit Model to Blank Wells - Group {group_num}")
+                    
                     _plot_average_blank(df, selected_blank_wells)
+                    st.subheader(f"Fit Model to Blank Wells - Group {group_num}")
                     selected_model = st.selectbox(
                         f"Select Model for Blank Well Fitting - Group {group_num}",
                         ["Polynomial Growth", "Polynomial Function"],

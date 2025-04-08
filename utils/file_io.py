@@ -79,7 +79,6 @@ def create_button_layout(rows, columns, labels, key_prefix, df=None):
       div[data-testid="column"] { padding:0rem 0.2rem; }
     </style>
     """,unsafe_allow_html=True)
-    st.subheader(f"🔬 Well Selection: {key_prefix}")
 
     for k in ["selected_wells","selected_rows","selected_cols","manual_deselected"]:
         if f"{key_prefix}_{k}" not in st.session_state:
