@@ -36,7 +36,13 @@ def display_tab_operations():
         group2_data = groups_data.get("Group_2_bg_subtracted")
 
         if group1_data is not None and group2_data is not None:
-            operation = st.selectbox("Select operation", ["Add","Subtract","Multiply","Divide"])
+            group_order = st.radio(
+                "Select group order for operation",
+                ["Group 1 [operation] Group 2", "Group 2 [operation] Group 1"],
+                key="group_order"
+            )
+            
+            operation = st.selectbox("Select operation", ["Add", "Subtract", "Multiply", "Divide"])
             sample_wells_group1 = st.session_state.get("selected_sample_wells_by_group", {}).get(1, [])
             sample_wells_group2 = st.session_state.get("selected_sample_wells_by_group", {}).get(2, [])
 
@@ -44,8 +50,14 @@ def display_tab_operations():
                 group1_data_samples = group1_data[["Time"] + sample_wells_group1]
                 group2_data_samples = group2_data[["Time"] + sample_wells_group2]
 
-                operated_data = perform_group_operations(group1_data_samples, group2_data_samples, operation)
-                st.write(f"Result of {operation} operation between Group 1 and Group 2:")
+                if group_order == "Group 1 [operation] Group 2":
+                    operated_data = perform_group_operations(group1_data_samples, group2_data_samples, operation)
+                    operation_description = f"Group 1 {operation} Group 2"
+                else:
+                    operated_data = perform_group_operations(group2_data_samples, group1_data_samples, operation)
+                    operation_description = f"Group 2 {operation} Group 1"
+                    
+                st.write(f"Result of {operation_description}:")
                 st.dataframe(operated_data)
 
                 if "Average" not in operated_data.columns and operated_data.shape[1] > 1:

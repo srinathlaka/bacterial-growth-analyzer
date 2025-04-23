@@ -328,3 +328,146 @@ def plot_avg_sd_bg_subtracted(data, wells, group_num):
     # Generate a truly unique key using uuid
     unique_key = f"plot_avg_sd_group_{group_num}_{uuid.uuid4()}"
     st.plotly_chart(fig, key=unique_key)
+
+def plot_raw_vs_corrected(df, group_df, well_name, group_num):
+    """Compare raw and background-corrected data for a single well"""
+    import plotly.graph_objects as go
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=df['Time'], 
+        y=df[well_name], 
+        mode='lines', 
+        name='Raw Data',
+        line=dict(color='blue')
+    ))
+    fig.add_trace(go.Scatter(
+        x=group_df['Time'], 
+        y=group_df[well_name], 
+        mode='lines', 
+        name='Background Corrected',
+        line=dict(color='green')
+    ))
+    fig.update_layout(
+        title=f'Raw vs. Background-Corrected Data - {well_name} (Group {group_num})',
+        xaxis_title='Time',
+        yaxis_title='OD',
+        template='plotly_white'
+    )
+    return fig
+
+def plot_average_blank(df, blank_wells):
+    """Plot the average of blank wells"""
+    import plotly.graph_objects as go
+    import uuid
+    
+    fig = go.Figure()
+    
+    # First plot each individual blank well
+    for well in blank_wells:
+        if well in df.columns:
+            fig.add_trace(go.Scatter(
+                x=df['Time'],
+                y=df[well],
+                mode='lines',
+                opacity=0.3,
+                name=f'Blank: {well}'
+            ))
+    
+    # Then plot the average of all blank wells
+    if blank_wells and all(well in df.columns for well in blank_wells):
+        avg_blank = df[blank_wells].mean(axis=1)
+        fig.add_trace(go.Scatter(
+            x=df['Time'],
+            y=avg_blank,
+            mode='lines',
+            name='Average of All Blank Wells',
+            line=dict(color='black', width=3)
+        ))
+    
+    fig.update_layout(
+        title='Blank Wells and Their Average',
+        xaxis_title='Time',
+        yaxis_title='OD',
+        template='plotly_white'
+    )
+    
+    # Use a unique key to prevent reuse issues
+    unique_key = f"plot_blank_wells_{uuid.uuid4().hex}"
+    st.plotly_chart(fig, use_container_width=True, key=unique_key)
+
+def plot_blank_fit(df, avg_blank, y_pred, lower_bound, upper_bound, group_num):
+    """
+    Plot the blank well data with fitted model and confidence intervals.
+    
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        The dataframe containing Time column and blank well data
+    avg_blank : pandas.Series
+        The average values of blank wells
+    y_pred : numpy.ndarray
+        The fitted model predictions
+    lower_bound : numpy.ndarray
+        Lower confidence interval boundary
+    upper_bound : numpy.ndarray
+        Upper confidence interval boundary
+    group_num : int
+        Group number for display purposes
+        
+    Returns:
+    --------
+    fig : plotly.graph_objs.Figure
+        The plotly figure object ready to be displayed
+    """
+    import plotly.graph_objects as go
+    
+    fig = go.Figure()
+    
+    # Add the raw data
+    fig.add_trace(go.Scatter(
+        x=df['Time'],
+        y=avg_blank,
+        mode='markers',
+        name='Average of Blank Wells',
+        marker=dict(color='blue', size=8)
+    ))
+    
+    # Add the fitted curve
+    fig.add_trace(go.Scatter(
+        x=df['Time'],
+        y=y_pred,
+        mode='lines',
+        name='Fitted Model',
+        line=dict(color='red', width=2)
+    ))
+    
+    # Add confidence intervals
+    fig.add_trace(go.Scatter(
+        x=df['Time'],
+        y=upper_bound,
+        mode='lines',
+        line=dict(width=0),
+        showlegend=False
+    ))
+    
+    fig.add_trace(go.Scatter(
+        x=df['Time'],
+        y=lower_bound,
+        mode='lines',
+        line=dict(width=0),
+        fill='tonexty',
+        fillcolor='rgba(255, 0, 0, 0.2)',
+        name='95% Confidence Interval'
+    ))
+    
+    # Update layout
+    fig.update_layout(
+        title=f'Blank Wells Fitting - Group {group_num}',
+        xaxis_title='Time',
+        yaxis_title='OD',
+        template='plotly_white',
+        hovermode='closest'
+    )
+    
+    return fig

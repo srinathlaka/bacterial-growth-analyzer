@@ -43,41 +43,57 @@ def display_tab_upload():
 
     if df is not None:
         st.subheader("🔬 Select Wells to Plot")
-        selected_wells = create_button_layout(rows, columns, labels, key_prefix="tab1_wells", df=df)
+        selected_wells, plot_selected = create_button_layout(rows, columns, labels, key_prefix="tab1_wells", df=df)
+        
+        # Store selected wells in session state
         if selected_wells:
+            st.session_state["upload_tab_selected_wells"] = selected_wells
             st.success(f"✅ Selected Wells: {', '.join(selected_wells)}")
-            plot_selected_wells(df, selected_wells)
+
+            # If Plot button was just clicked OR we have previous plot data to show
+            if plot_selected:
+                # Plot the data and store the fact that we plotted
+                plot_selected_wells(df, selected_wells)
+                st.session_state["upload_tab_has_plot"] = True
+            elif st.session_state.get("upload_tab_has_plot", False):
+                # Re-plot using previous selection if we had plotted before
+                stored_wells = st.session_state.get("upload_tab_selected_wells", [])
+                if stored_wells:
+                    plot_selected_wells(df, stored_wells)
         else:
+            # Clear the plot state if no wells are selected
+            st.session_state["upload_tab_has_plot"] = False
             st.info("🛑 Please select some wells.")
 
 
 def _select_layout():
     """
-    Reimplements your 'select_layout' logic for convenience. 
+    Simplified layout selection with a single dropdown menu.
+    Custom option triggers additional inputs.
     """
-    layout_option = st.selectbox("Select layout option", ["Select from presets", "Custom"])
-    if layout_option == "Select from presets":
-        well_format = st.selectbox(
-            "Select well format",
-            [
-                "96 well rows 8 column 12",
-                "24 well rows 4 column 6",
-                "84 well rows 7 column 12",
-                "1536 well rows 32 column 48"
-            ]
-        )
-        if well_format == "24 well rows 4 column 6":
-            return 4,6
-        elif well_format == "96 well rows 8 column 12":
-            return 8,12
-        elif well_format == "84 well rows 7 column 12":
-            return 7,12
-        elif well_format == "1536 well rows 32 column 48":
-            return 32,48
-    else:
-        custom_rows = st.number_input("Enter number of rows", min_value=1, step=1)
-        custom_columns = st.number_input("Enter number of columns", min_value=1, step=1)
+    well_format = st.selectbox(
+        "Select well format",
+        [
+            "96 well rows 8 column 12",
+            "24 well rows 4 column 6",
+            "84 well rows 7 column 12",
+            "1536 well rows 32 column 48",
+            "Custom"
+        ]
+    )
+    
+    if well_format == "Custom":
+        custom_rows = st.number_input("Enter number of rows", min_value=1, value=8, step=1)
+        custom_columns = st.number_input("Enter number of columns", min_value=1, value=12, step=1)
         return int(custom_rows), int(custom_columns)
+    elif well_format == "24 well rows 4 column 6":
+        return 4, 6
+    elif well_format == "96 well rows 8 column 12":
+        return 8, 12
+    elif well_format == "84 well rows 7 column 12":
+        return 7, 12
+    elif well_format == "1536 well rows 32 column 48":
+        return 32, 48
 
 def _display_example_and_images():
     """

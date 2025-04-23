@@ -8,7 +8,7 @@ from utils.plotting import plot_avg_sd_operated
 from utils.ode_analysis import parse_ode, compute_ode_ci_for_X
 from utils.plotting import plot_all_ode_fits_summary, plot_selected_wells
 from utils.file_io import generate_labels
-from utils.models import polynomial_growth, polynomial_func  # etc. if needed
+from utils.models import power_law, polynomial_func  # etc. if needed
 
 def display_tab_ode_analysis():
     """
@@ -227,6 +227,8 @@ def display_tab_ode_analysis():
 
                                 from scipy.stats import t as t_dist
                                 t_stats=fitted_params/std_errors
+                                st.write(dof)
+
                                 pvals=2*(1-t_dist.cdf(np.abs(t_stats), df=dof))
 
                                 from utils.ode_analysis import compute_ode_ci_for_X

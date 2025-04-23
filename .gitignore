@@ -169,3 +169,5 @@ cython_debug/
 /dataSources/
 /dataSources.local.xml
 credentials.yaml
+tabs/hover.py
+tabs/test.py

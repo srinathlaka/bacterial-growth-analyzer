@@ -70,15 +70,22 @@ def generate_labels(rows, cols):
 
 def create_button_layout(rows, columns, labels, key_prefix, df=None):
     """
-    The advanced well selection UI. Code from your script. 
+    The advanced well selection UI with colored buttons for selected wells.
     """
     st.markdown("""
     <style>
       .block-container { padding-top:0rem; padding-bottom:0rem; }
       .stButton,.stRadio { margin:0rem; padding:0rem; }
       div[data-testid="column"] { padding:0rem 0.2rem; }
+      
+      /* Style for selected wells (primary) */
+      .stButton button[data-testid="baseButton-primary"] {
+        background-color: #d1e7dd;
+        border-color: #badbcc;
+        color: #0f5132;
+      }
     </style>
-    """,unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
     for k in ["selected_wells","selected_rows","selected_cols","manual_deselected"]:
         if f"{key_prefix}_{k}" not in st.session_state:
@@ -94,29 +101,41 @@ def create_button_layout(rows, columns, labels, key_prefix, df=None):
     top_row=st.columns(columns+1, gap="small")
     top_row[0].write(" ")
     for j in range(columns):
-        col_key=f"{key_prefix}_col_select_{j}"
-        top_row[j+1].radio(" ",[" ","✓"],index=0,key=col_key,label_visibility="collapsed")
+        col_key = f"{key_prefix}_col_select_{j}"
+        # Default to first option if reset flag is set
+        default_index = 0 if st.session_state.get(f"{key_prefix}_reset_radios", False) else None
+        top_row[j+1].radio(" ", [" ", "✓"], index=default_index, key=col_key, label_visibility="collapsed")
 
-    st.markdown("<div style='text-align:center;'>",unsafe_allow_html=True)
-    apply_selection=st.button("Select Wells", key=f"{key_prefix}_apply_selection")
-    st.markdown("</div>",unsafe_allow_html=True)
+    # After creating all radio buttons, clear the reset flag
+    if st.session_state.get(f"{key_prefix}_reset_radios", False):
+        st.session_state[f"{key_prefix}_reset_radios"] = False
+
+    # Row-column selection - use horizontal layout for the buttons
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        apply_selection=st.button("Select by Row/Column", key=f"{key_prefix}_apply_selection")
 
     for i in range(rows):
         row_layout=st.columns(columns+1, gap="small")
         row_key=f"{key_prefix}_row_select_{i}"
-        row_layout[0].radio(" ",[" ","✓"],index=0,key=row_key,label_visibility="collapsed")
+        default_index = 0 if st.session_state.get(f"{key_prefix}_reset_radios", False) else None
+        row_layout[0].radio(" ",[" ","✓"],index=default_index,key=row_key,label_visibility="collapsed")
         row_layout[0].write(f"**{chr(65+i)}**")
         for j in range(columns):
             idx=i*columns+j
             well_name=labels[idx]
             is_selected=(well_name in st.session_state[f"{key_prefix}_selected_wells"])
-            if row_layout[j+1].button(well_name, key=f"{key_prefix}_{well_name}"):
+            
+            # Use primary type for selected wells, secondary for unselected
+            button_type = "primary" if is_selected else "secondary"
+            if row_layout[j+1].button(well_name, key=f"{key_prefix}_{well_name}", type=button_type):
                 if is_selected:
                     st.session_state[f"{key_prefix}_selected_wells"].remove(well_name)
                     st.session_state[f"{key_prefix}_manual_deselected"].add(well_name)
                 else:
                     st.session_state[f"{key_prefix}_selected_wells"].add(well_name)
                     st.session_state[f"{key_prefix}_manual_deselected"].discard(well_name)
+                st.rerun()  # Add this to update UI immediately
 
     if apply_selection:
         selected_cols_1b={j+1 for j in range(columns)
@@ -152,17 +171,30 @@ def create_button_layout(rows, columns, labels, key_prefix, df=None):
                 elif not manually_selected:
                     st.session_state[f"{key_prefix}_selected_wells"].discard(well_name)
         st.success("✅ Wells selected based on row/column intersection!")
+        st.rerun()  # Add this line to refresh the UI
 
-    if st.button("Clear Selection", key=f"{key_prefix}_clear"):
-        if select_all:
-            st.warning("⚠️ Please uncheck 'Select All Wells' first.")
-        else:
-            st.session_state[f"{key_prefix}_selected_wells"].clear()
-            st.session_state[f"{key_prefix}_selected_rows"].clear()
-            st.session_state[f"{key_prefix}_selected_cols"].clear()
-            st.session_state[f"{key_prefix}_manual_deselected"].clear()
-            st.success("✅ Selection cleared!")
-            st. rerun
+    # Action buttons - use horizontal layout
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("Clear Selection", key=f"{key_prefix}_clear"):
+            if select_all:
+                st.warning("⚠️ Please uncheck 'Select All Wells' first.")
+            else:
+                # Only clear the selections, don't try to modify widget values directly
+                st.session_state[f"{key_prefix}_manual_deselected"].clear()
+                st.session_state[f"{key_prefix}_selected_wells"].clear()
+                st.session_state[f"{key_prefix}_selected_rows"].clear()
+                st.session_state[f"{key_prefix}_selected_cols"].clear()
+                
+                # Add a flag to indicate we want to reset the radio buttons
+                st.session_state[f"{key_prefix}_reset_radios"] = True
+                
+                st.success("✅ Selection cleared!")
+                st.rerun()  # This will cause the app to re-render with cleared selections
+    
+    # New Plot Selected button
+    with col2:
+        plot_selected = st.button("📊 Plot Selected", key=f"{key_prefix}_plot_selected")
 
     selected_wells=sorted(st.session_state[f"{key_prefix}_selected_wells"])
     if selected_wells:
@@ -173,7 +205,9 @@ def create_button_layout(rows, columns, labels, key_prefix, df=None):
         ]),unsafe_allow_html=True)
     else:
         st.info("No wells selected.")
-    return selected_wells
+    
+    # Return both selected wells and the plot flag
+    return selected_wells, plot_selected
 
 def create_custom_model(custom_expr, param_names):
     """

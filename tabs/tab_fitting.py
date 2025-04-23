@@ -175,7 +175,7 @@ def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
             if phase_data.empty:
                 st.warning(f"No data points in interval {start} to {end}.")
                 continue
-            phase_data["Average"] = phase_data[wells].mean(axis=1)
+            phase_data.loc[:, "Average"] = phase_data[wells].mean(axis=1)
             time_vals = phase_data["Time"].values
             y_data = phase_data["Average"].values
 
@@ -215,7 +215,19 @@ def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
             RSS = np.sum(residuals**2)
             AIC = 2*len(popt) + len(y_data)*np.log(RSS/len(y_data))
             t_statistic = popt / perr
-            p_values = 2*(1 - t_dist.cdf(np.abs(t_statistic), df=dof))
+
+            # Use residual variance relative to data variance as a better quality check
+            data_variance = np.var(y_data)
+            variance_ratio = residual_variance / data_variance
+            if variance_ratio > 0.2 or R_squared < 0.90:  # Poor fit conditions
+                st.warning(f"⚠️ Model fit quality is questionable (R² = {R_squared:.4f}, Variance ratio = {variance_ratio:.4f})")
+                # Adjust p-values to reflect poor fit quality
+                p_values = [0.5 for _ in popt]  # Assign a high p-value for poor fits
+            else:
+                # For good fits, calculate normal p-values
+                raw_p_values = 2 * (1 - t_dist.cdf(np.abs(t_statistic), df=dof))
+                st.write(dof)
+                p_values = raw_p_values  # Use actual p-values for good fits
 
             phase_dict = {
                 "id": str(uuid.uuid4()),
@@ -262,7 +274,7 @@ def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
                 "Estimate": popt,
                 "Std. Error": perr,
                 "t-Statistic": t_statistic,
-                "p-Value": p_values
+                "p-Value": [f"{p:.6e}" for p in p_values]  # Always use scientific notation with 6 decimal places
             })
             st.dataframe(param_table)
     except Exception as e:
@@ -302,43 +314,115 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                 time_vals = phase_data["Time"].values
                 y_data = phase_data["Average"].values
 
+                # First, store the model selection in session state
+                if f"model_selection_{i}" not in st.session_state:
+                    st.session_state[f"model_selection_{i}"] = phase.get("model", "Exponential Growth")
+
+                # Then use the session state value to set the default index
+                model_options = [
+                    "Exponential Growth",
+                    "Logistic Growth",
+                    "Baranyi Growth",
+                    "Lag-Exponential-Saturation Growth",
+                    "Gompertz Growth",
+                    "Custom Function",
+                    "Automatic Fit"
+                ]
+                default_index = model_options.index(st.session_state[f"model_selection_{i}"]) if st.session_state[f"model_selection_{i}"] in model_options else 0
+
+                # Use index parameter to maintain selection after rerun
                 phase["model"] = st.selectbox(
                     f"Select Model for Fit {i+1}",
-                    [
-                        "Exponential Growth",
-                        "Logistic Growth",
-                        "Baranyi Growth",
-                        "Lag-Exponential-Saturation Growth",
-                        "Gompertz Growth",  # Add Gompertz Growth here
-                        "Custom Function",
-                        "Automatic Fit"
-                    ],
+                    model_options,
+                    index=default_index,
                     key=f"model_{i}"
                 )
+
+                # Update the session state when selection changes
+                st.session_state[f"model_selection_{i}"] = phase["model"]
+
                 if phase["model"] == "Custom Function":
-                    phase["custom_model_expr"] = st.text_input(
-                        f"Custom Model Expression for Fit {i+1}",
-                        value=phase.get("custom_model_expr","X*exp(mu*t)"),
-                        key=f"custom_model_expr_{i}"
-                    )
-                    phase["custom_params"] = st.text_input(
+                    # Store initial values in session state to preserve them
+                    if f"custom_model_expr_{i}" not in st.session_state:
+                        st.session_state[f"custom_model_expr_{i}"] = phase.get("custom_model_expr", "X*exp(mu*t)")
+                    
+                    if f"custom_params_{i}" not in st.session_state:
+                        params_str = ", ".join(phase.get("custom_params", [])) or "X, mu"
+                        st.session_state[f"custom_params_{i}"] = params_str
+                    
+                    # Add helpful examples
+                    st.info("""
+                    **Custom Function Examples:**
+                    - `X0*exp(mu*t)`: Exponential growth
+                    - `K/(1 + ((K-X0)/X0)*exp(-mu*t))`: Logistic growth
+                    - `A*(1-exp(-exp(mu*e/A*(lambda-t)+1)))`: Gompertz model
+                    
+                    Use `t` as the independent variable (time).
+                    """)
+                    
+                    # Use the stored values as defaults with better column layout
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        phase["custom_model_expr"] = st.text_input(
+                            f"Custom Model Expression for Fit {i+1}",
+                            value=st.session_state[f"custom_model_expr_{i}"],
+                            key=f"custom_model_input_{i}"
+                        )
+                    with col2:
+                        st.write("Parameters must be in expression!")
+                    
+                    # Update session state immediately
+                    st.session_state[f"custom_model_expr_{i}"] = phase["custom_model_expr"]
+                    
+                    params_str = st.text_input(
                         f"Parameters to Optimize (comma-separated) for Fit {i+1}",
-                        value=", ".join(phase.get("custom_params",[])) or "X, mu",
-                        key=f"custom_params_{i}"
-                    ).split(",")
-                    from utils.file_io import create_custom_model
-                    model_func = create_custom_model(phase["custom_model_expr"], [p.strip() for p in phase["custom_params"] if p.strip()])
-                    phase["parameters"] = [p.strip() for p in phase["custom_params"] if p.strip()]
+                        value=st.session_state[f"custom_params_{i}"],
+                        help="Example: X0, mu, K (must match variables in expression)",
+                        key=f"custom_params_input_{i}"
+                    )
+                    # Update session state immediately
+                    st.session_state[f"custom_params_{i}"] = params_str
+                    phase["custom_params"] = [p.strip() for p in params_str.split(",") if p.strip()]
+                    
+                    try:
+                        # Validate parameters match expression
+                        for param in phase["custom_params"]:
+                            if param.strip() not in phase["custom_model_expr"] and param.strip() != "t":
+                                st.warning(f"Parameter '{param}' not found in expression. Did you misspell it?")
+                        
+                        from utils.file_io import create_custom_model
+                        model_func = create_custom_model(phase["custom_model_expr"], phase["custom_params"])
+                        phase["parameters"] = phase["custom_params"]
+                        
+                        # Show a preview of the function with test values
+                        test_t = 1.0
+                        test_params = [1.0] * len(phase["custom_params"])
+                        try:
+                            test_result = model_func(test_t, *test_params)
+                            st.success(f"✅ Custom function parsed successfully! f(t=1) = {test_result:.4f}")
+                        except Exception as e_test:
+                            st.warning(f"Function parsed but test evaluation failed: {e_test}")
+                    except Exception as e:
+                        st.error(f"Error in custom function: {str(e)}")
+                        # Don't clear the inputs on error - they're already preserved in session state
+                        phase["parameters"] = phase["custom_params"]
                 elif phase["model"] == "Automatic Fit":
                     st.info("Automatic Fit: evaluating candidate models.")
                     best_model, best_popt, best_pcov, best_aic, best_candidate = None,None,None,np.inf,None
                     from utils.models import MODEL_FUNCTIONS, MODEL_PARAMS, default_guesses
 
                     # Add Gompertz Growth to the list of candidate models
-                    for candidate in [m for m in MODEL_FUNCTIONS.keys() if m not in ["Custom Function", "Automatic Fit"]]:
+                    for candidate in [m for m in MODEL_FUNCTIONS.keys() if m not in ["Custom Function", "Automatic Fit", "Power Law", "Polynomial Function"]]:
                         try:
                             cf_model_func = MODEL_FUNCTIONS[candidate]
-                            guesses = default_guesses.get(candidate, [1.0]*len(MODEL_PARAMS.get(candidate,[])))
+                            
+                            # Use smart default guesses with proper function calls
+                            if candidate in default_guesses:
+                                # Call the lambda with both y_data and time_vals
+                                guesses = default_guesses[candidate](y_data, time_vals)
+                            else:
+                                guesses = [1.0] * len(MODEL_PARAMS.get(candidate, []))
+                                
                             popt_candidate, pcov_candidate = curve_fit(cf_model_func, time_vals, y_data, p0=guesses)
                             y_pred_candidate = cf_model_func(time_vals, *popt_candidate)
                             rss_candidate = np.sum((y_data - y_pred_candidate)**2)
@@ -384,7 +468,23 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                 for param in params_list:
                     col_a, col_b, col_c, col_d = st.columns(4)
                     with col_a:
-                        guess = st.number_input(f"Initial guess for {param}", value=1.0, step=0.01, format="%.5f", key=f"{param}_{i}_guess")
+                        # Get smart defaults using the lambda functions
+                        if phase["model"] in default_guesses:
+                            param_index = params_list.index(param)
+                            try:
+                                # Call lambda with both y_data and time_vals
+                                defaults = default_guesses[phase["model"]](y_data, time_vals)
+                                default_value = defaults[param_index] if param_index < len(defaults) else 1.0
+                            except Exception:
+                                default_value = 1.0
+                        else:
+                            default_value = 1.0
+                            
+                        guess = st.number_input(f"Initial guess for {param}", 
+                                               value=float(default_value), 
+                                               step=0.01, 
+                                               format="%.5f", 
+                                               key=f"{param}_{i}_guess")
                         initial_guesses_list.append(guess)
                     with col_b:
                         bound_flag = st.checkbox(f"Use bounds for {param}?", value=False, key=f"use_bounds_{param}_{i}")
@@ -410,16 +510,50 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                         else:
                             popt, pcov = curve_fit(model_func, time_vals, y_data, p0=initial_guesses_list)
                         y_pred = model_func(time_vals, *popt)
-                        residuals = y_data-y_pred
+                        
+                        # Calculate residuals and quality metrics
+                        residuals = y_data - y_pred
                         residual_variance = np.var(residuals, ddof=len(popt))
-                        dof=len(y_data)-len(popt)
+                        RSS = np.sum(residuals**2)
+                        TSS = np.sum((y_data - np.mean(y_data))**2)
+                        R_squared = 1 - (RSS / TSS)
+                        st.write(f"Goodness of fit: R² = {R_squared:.4f}")
+                        st.write(f"Residual variance: {residual_variance:.8f}")
+
+                        # Calculate AIC
+                        AIC = 2*len(popt) + len(y_data)*np.log(RSS/len(y_data))
+
+                        # Calculate confidence intervals
+                        dof = len(y_data) - len(popt)
                         lower_bound_ci, upper_bound_ci = compute_confidence_intervals(time_vals, popt, pcov, 0.05, dof, residual_variance, model_func)
-                        perr=np.sqrt(np.diag(pcov))
-                        RSS=np.sum(residuals**2)
-                        AIC=2*len(popt)+len(y_data)*np.log(RSS/len(y_data))
-                        t_statistic=popt/perr
-                        from scipy.stats import t as t_dist
-                        p_values = 2*(1-t_dist.cdf(np.abs(t_statistic), df=dof))
+
+                        # More realistic p-value calculation
+                        perr = np.sqrt(np.diag(pcov))
+                        t_statistic = popt / perr
+
+                        # Use residual variance relative to data variance as a better quality check
+                        data_variance = np.var(y_data)
+                        variance_ratio = residual_variance / data_variance
+                        if variance_ratio > 0.2 or R_squared < 0.90:  # Poor fit conditions
+                            st.warning(f"⚠️ Model fit quality is questionable (R² = {R_squared:.4f}, Variance ratio = {variance_ratio:.4f})")
+                            # Adjust p-values to reflect poor fit quality
+                            p_values = [0.5 for _ in popt]  # Assign a high p-value for poor fits
+                        else:
+                            # For good fits, calculate normal p-values
+                            raw_p_values = 2 * (1 - t_dist.cdf(np.abs(t_statistic), df=dof))
+                            st.write(dof)
+                            p_values = raw_p_values  # Use actual p-values for good fits
+
+                        # Add a more prominent warning and clearly show revised p-values
+                        if variance_ratio > 0.2 or R_squared < 0.90:  
+                            st.error(f"""
+                            ⚠️ WARNING: THIS MODEL DOES NOT FIT THE DATA WELL
+                            - R² = {R_squared:.4f} (should be > 0.90)
+                            - Variance ratio = {variance_ratio:.4f} (should be < 0.20)
+                            
+                            The p-values shown below are ADJUSTED to reflect the poor fit quality
+                            and should NOT be interpreted as statistically significant.
+                            """)
 
                         phase["fit_results"]={
                             "phase_time":time_vals,
@@ -431,7 +565,7 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                             "param_errors":perr,
                             "AIC":AIC,
                             "t_statistic":t_statistic,
-                            "p_values":p_values
+                            "p-Values":p_values
                         }
                         phase.setdefault("phase", i+1)
                         phase["phase_time"]=time_vals
@@ -448,14 +582,29 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                         st.success("Model fitted successfully!")
                         plot_fitted_curves(phase_data, time_vals, y_data, y_pred, phase["model"])
                         plot_confidence_intervals(phase_data, lower_bound_ci, upper_bound_ci, y_pred, phase_data[selected_operated_wells].std(axis=1))
+                        st.write(dof/10)
+                        st.write(t_statistic)
+                        st.write(np.abs(t_statistic))
+                        st.dataframe(y_data)
+                        st.dataframe(popt)
+                        
+                        st.write(len(y_data))
+                        st.write(len(popt))
+                        st.write("calculated pvalues")
+                        st.write(t_dist.cdf(np.abs(t_statistic/100), df=dof))
+                        st.write("actual pvaalues")
+                        st.write(p_values)
 
                         param_labels=[f"{p}" for p in phase.get("parameters",[])]
                         param_table=pd.DataFrame({
-                            "Parameter":param_labels,
-                            "Estimate":popt,
-                            "Std. Error":perr,
-                            "t-Statistic":t_statistic,
-                            "p-Value":p_values
+                            "Parameter": param_labels,
+                            "Estimate": popt,
+                            "Std. Error": perr,
+                            "t-Statistic": t_statistic,
+                            "p-Value": [f"{p:.3g}" for p in p_values],  # 3 significant digits
+                            "Fit Quality": ["POOR" if variance_ratio > 0.2 or R_squared < 0.90 else "GOOD" for _ in popt],
+                            "R²": [R_squared for _ in popt],  # Add R² for context
+                            "Variance Ratio": [variance_ratio for _ in popt]  # Add variance ratio for context
                         })
                         st.dataframe(param_table)
                     except Exception as e_fit:
