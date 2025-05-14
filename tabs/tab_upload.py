@@ -2,6 +2,7 @@ import streamlit as st
 import os
 from PIL import Image
 import json
+import pandas as pd
 
 from utils.file_io import (
     read_data,
@@ -16,7 +17,34 @@ def display_tab_upload():
     Tab 1: Upload and Inspect Data. Lets user pick layout, upload file, 
     see raw data, and manually select wells for preview.
     """
+    # Initialize df to None at the start to avoid UnboundLocalError
+    df = None
+    
     st.header("📁 Raw Data Plotting")
+
+    # Show different content based on user mode
+    if st.session_state.get("user_level") == "Basic":
+        st.info("""
+        ### Basic Mode Tutorial
+        
+        Welcome to the Bacterial Growth Analyzer! This simplified mode will help you:
+        1. **Upload** your plate reader data
+        2. **Subtract** background readings
+        3. **Fit** growth models to your data
+        
+        Need help getting started? Check the information below!
+        """)
+    else:
+        st.info("""
+        ### Advanced Mode Features
+        
+        All features are unlocked in Advanced Mode:
+        - Multi-group data analysis
+        - Custom mathematical operations
+        - ODE-based analysis
+        - Custom function fitting
+        - Multiple data sources
+        """)
 
     # Layout selection
     rows, columns = _select_layout()
@@ -24,15 +52,80 @@ def display_tab_upload():
     st.session_state["columns"] = columns
     labels = generate_labels(rows, columns)
 
+    # Limit groups in Basic mode
+    if st.session_state.get("user_level") == "Basic" and "num_groups" not in st.session_state:
+        # Basic mode - force to single group
+        st.session_state["num_groups"] = 1
+    else:
+        # Allow multiple groups in Advanced mode
+        if st.session_state.get("user_level") == "Advanced" and "num_groups" not in st.session_state:
+            num_groups = st.number_input("Number of groups/experiments", min_value=1, max_value=4, value=1)
+            st.session_state["num_groups"] = num_groups
+
     # Display example and images if exist
     _display_example_and_images()
 
     st.subheader("📂 Upload Your Data File (CSV or XLSX)")
     uploaded_file = st.file_uploader("Choose a file", type=["xlsx","csv"], key="data_file")
 
-    df = None
-    if uploaded_file is not None:
+    # Add this right after the file uploader
+    if uploaded_file is None and "df" in st.session_state:
+        # Show a notice that data is already loaded
+        st.success(f"""
+        ✅ **Data already loaded!** 
+        
+        Your previous file is still available in memory even though the uploader shows empty.
+        You can continue to work with your data in other tabs.
+        """)
+        
+        # Option to clear data if desired
+        if st.button("Clear loaded data", key="clear_data"):
+            # Remove relevant keys
+            keys_to_remove = ["df", "upload_tab_selected_wells", "groups_data", "num_groups"]
+            for key in keys_to_remove:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
+        
+        # Use the df that's already in session state
+        df = st.session_state["df"]
+        
+        # Optional: show a preview of the data
+        with st.expander("📊 View Raw Data"):
+            st.dataframe(df)
+            
+    elif uploaded_file is not None:
         with st.spinner("Reading and processing the data..."):
+            # Add a warning if previous data exists
+            if ("groups_data" in st.session_state and st.session_state["groups_data"]) or \
+               ("operated_data" in st.session_state and isinstance(st.session_state["operated_data"], pd.DataFrame) and not st.session_state["operated_data"].empty):
+                st.warning("""
+                ⚠️ **Warning:** Previous analysis data exists in memory!
+                
+                For accurate analysis with your new file, it's recommended to reset the app.
+                """)
+                
+                # Add a reset app button
+                if st.button("🔄 Reset Entire App", key="reset_entire_app"):
+                    # List of all keys that should be preserved
+                    keys_to_preserve = ["user_level", "current_tab"]
+                    
+                    # Store the values we want to keep
+                    preserved_values = {k: st.session_state[k] for k in keys_to_preserve if k in st.session_state}
+                    
+                    # Clear the entire session state
+                    for key in list(st.session_state.keys()):
+                        if key not in keys_to_preserve:
+                            del st.session_state[key]
+                    
+                    # Restore preserved values
+                    for k, v in preserved_values.items():
+                        st.session_state[k] = v
+                    
+                    st.success("✅ App has been reset! All previous analysis data has been cleared.")
+                    st.rerun()
+            
+            # Continue with reading the new file
             df = read_data(uploaded_file, rows, columns)
             if df is not None:
                 st.session_state["df"] = df

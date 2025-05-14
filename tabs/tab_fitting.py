@@ -23,11 +23,17 @@ from utils.models import (
 )
 
 def display_tab_fitting():
-    """
-    Tab 4: Fitting. 
-    - Automatic JSON config
-    - Manual fit UI
-    """
+    st.header("Growth Model Fitting")
+    
+    # Check if background subtraction was skipped
+    if st.session_state.get("bg_subtraction_skipped", False):
+        st.warning("""
+        ⚠️ **Background subtraction was skipped**
+        
+        You're analyzing raw data without background correction.
+        This may affect growth parameter estimation if your data has significant background signal.
+        """)
+    
     st.subheader("Fitting")
 
     # Make sure we have "operated_data"
@@ -111,11 +117,18 @@ def display_tab_fitting():
     if st.session_state.get("phases"):
         fitted_phases = [
             phase for phase in st.session_state["phases"]
-            if phase.get("fit_results") and "phase_time" in phase
+            if phase.get("fit_results") is not None
         ]
         if fitted_phases:
+            # Generate a stable key based on the number of phases and their IDs
+            phase_ids = "_".join([str(phase.get("id", ""))[:4] for phase in fitted_phases][:3])
+            summary_key = f"summary_plot_{len(fitted_phases)}_{phase_ids}"
+            
+            # Create the summary plot
             fig_summary = plot_phase_fit_with_ci(fitted_phases, operated_data, selected_operated_wells)
-            st.plotly_chart(fig_summary, use_container_width=True)
+            
+            # Use the stable key for the plot
+            st.plotly_chart(fig_summary, use_container_width=True, key=summary_key)
         else:
             st.info("No fits available to generate a summary plot.")
 
@@ -213,6 +226,10 @@ def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
             perr = np.sqrt(np.diag(pcov))
 
             RSS = np.sum(residuals**2)
+            # Calculate Total Sum of Squares and R-squared - THIS IS MISSING
+            TSS = np.sum((y_data - np.mean(y_data))**2)
+            R_squared = 1 - (RSS / TSS)
+
             AIC = 2*len(popt) + len(y_data)*np.log(RSS/len(y_data))
             t_statistic = popt / perr
 
@@ -419,7 +436,10 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                             # Use smart default guesses with proper function calls
                             if candidate in default_guesses:
                                 # Call the lambda with both y_data and time_vals
-                                guesses = default_guesses[candidate](y_data, time_vals)
+                                if callable(default_guesses[candidate]):
+                                    guesses = default_guesses[candidate](y_data, time_vals)
+                                else:
+                                    guesses = default_guesses[candidate]
                             else:
                                 guesses = [1.0] * len(MODEL_PARAMS.get(candidate, []))
                                 
@@ -473,12 +493,13 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                             param_index = params_list.index(param)
                             try:
                                 # Call lambda with both y_data and time_vals
-                                defaults = default_guesses[phase["model"]](y_data, time_vals)
-                                default_value = defaults[param_index] if param_index < len(defaults) else 1.0
+                                if callable(default_guesses[phase["model"]]):
+                                    defaults = default_guesses[phase["model"]](y_data, time_vals)
+                                    default_value = defaults[param_index] if param_index < len(defaults) else 1.0
+                                else:
+                                    default_value = default_guesses[phase["model"]][param_index]
                             except Exception:
                                 default_value = 1.0
-                        else:
-                            default_value = 1.0
                             
                         guess = st.number_input(f"Initial guess for {param}", 
                                                value=float(default_value), 
@@ -580,20 +601,8 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                         phase["p_values"]=p_values
 
                         st.success("Model fitted successfully!")
-                        plot_fitted_curves(phase_data, time_vals, y_data, y_pred, phase["model"])
-                        plot_confidence_intervals(phase_data, lower_bound_ci, upper_bound_ci, y_pred, phase_data[selected_operated_wells].std(axis=1))
-                        st.write(dof/10)
-                        st.write(t_statistic)
-                        st.write(np.abs(t_statistic))
-                        st.dataframe(y_data)
-                        st.dataframe(popt)
-                        
-                        st.write(len(y_data))
-                        st.write(len(popt))
-                        st.write("calculated pvalues")
-                        st.write(t_dist.cdf(np.abs(t_statistic/100), df=dof))
-                        st.write("actual pvaalues")
-                        st.write(p_values)
+                        plot_fitted_curves(phase_data, time_vals, y_data, y_pred, phase["model"], phase["id"])
+                        plot_confidence_intervals(phase_data, lower_bound_ci, upper_bound_ci, y_pred, phase_data[selected_operated_wells].std(axis=1), phase["id"])
 
                         param_labels=[f"{p}" for p in phase.get("parameters",[])]
                         param_table=pd.DataFrame({
@@ -606,7 +615,7 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                             "R²": [R_squared for _ in popt],  # Add R² for context
                             "Variance Ratio": [variance_ratio for _ in popt]  # Add variance ratio for context
                         })
-                        st.dataframe(param_table)
+                        st.dataframe(param_table, key=f"param_table_{phase['id']}")
                     except Exception as e_fit:
                         st.error(f"Error fitting model for Fit {i+1}: {e_fit}")
             except Exception as e_manual:

@@ -49,13 +49,26 @@ def perform_background_subtraction(groups_data, df, group_num, selected_blank_we
             # Subtract background
             corrected_values = df[well] - blank_mean
             
-            # Set negative values to zero
-            corrected_values = corrected_values.clip(lower=0)
+            # Set negative values to zero (CRITICAL)
+            corrected_values = corrected_values.clip(lower=0)  # Or use np.maximum(corrected_values, 0)
             
             # Add to the background-subtracted dataframe
             bg_subtracted[well] = corrected_values
     
+    # Calculate average and std dev for all sample wells
+    if len(flat_sample_wells) > 0:
+        bg_subtracted['Average'] = bg_subtracted[flat_sample_wells].mean(axis=1)
+        bg_subtracted['Std_Dev'] = bg_subtracted[flat_sample_wells].std(axis=1)
+    
     # Store the background-subtracted data in the groups_data dictionary
     groups_data[f"Group_{group_num}_bg_subtracted"] = bg_subtracted
+    
+    # CRITICAL ADDITION: Update session state directly here
+    st.session_state["groups_data"] = groups_data
+    
+    # For Group 1, also set as operated_data for convenience
+    if group_num == 1:
+        st.session_state["operated_data"] = bg_subtracted
+        st.session_state["selected_operated_wells"] = flat_sample_wells
     
     return groups_data

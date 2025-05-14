@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import uuid
@@ -110,32 +111,42 @@ def plot_avg_sd_operated(data, selected_wells):
     unique_key=f"plot_avg_sd_operated_{uuid.uuid4().hex}"
     st.plotly_chart(fig,use_container_width=True,key=unique_key)
 
-def plot_selected_wells(df, selected_wells):
-    """
-    Quick function to line-plot selected wells from DataFrame. 
-    Lines ~1030 or so. 
-    """
-    fig=go.Figure()
-    for well in selected_wells:
-        if well not in df.columns:
-            continue
-        fig.add_trace(go.Scatter(x=df["Time"], y=df[well], mode='lines', name=well))
+def plot_selected_wells(df, wells, context="raw"):
+    """Plot selected wells."""
+    # Convert wells to a list if it's a pandas Index or Series
+    if isinstance(wells, (pd.Index, pd.Series)):
+        wells = wells.tolist()
+    
+    if not wells:
+        st.warning("No wells selected to plot.")
+        return
+    
+    # Create a stable key for the plot that includes context
+    wells_key = "_".join(sorted(wells[:3])) if wells else "empty"  # use up to first 3 wells for key
+    plot_key = f"selected_wells_{context}_{wells_key}_{len(wells)}"
+    
+    fig = go.Figure()
+    for well in wells:
+        if well in df.columns:
+            fig.add_trace(go.Scatter(
+                x=df['Time'], 
+                y=df[well],
+                mode='lines',
+                name=well
+            ))
+    
     fig.update_layout(
-        title="Time vs Selected Wells",
+        title='Selected Wells',
         xaxis_title='Time',
         yaxis_title='OD',
-        legend_title='Legend',
         template='plotly_white'
     )
-    unique_key=f"plot_selected_wells_{'_'.join(selected_wells)}_{uuid.uuid4().hex}"
-    st.plotly_chart(fig,use_container_width=True,key=unique_key)
+    
+    st.plotly_chart(fig, use_container_width=True, key=plot_key)
 
-def plot_confidence_intervals(df, lower_bound, upper_bound, y_pred, std_dev):
-    """
-    Plot confidence intervals & standard dev for a fitted curve. 
-    Lines ~1034–1100 snippet from your code.
-    """
-    fig=go.Figure()
+def plot_confidence_intervals(df, lower_bound, upper_bound, y_pred, std_dev, fit_id=None):
+    """Plot confidence intervals & standard deviation for a fitted curve."""
+    fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=np.concatenate([df['Time'], df['Time'][::-1]]),
         y=np.concatenate([lower_bound, upper_bound[::-1]]),
@@ -177,14 +188,17 @@ def plot_confidence_intervals(df, lower_bound, upper_bound, y_pred, std_dev):
         legend_title='Legend',
         template='plotly_white'
     )
-    st.plotly_chart(fig)
+    # Generate a stable key
+    if fit_id is None:
+        fit_id = hash(str(lower_bound[0]) + str(upper_bound[0])) % 10000
+        
+    plot_key = f"confidence_intervals_plot_{fit_id}"
+    st.plotly_chart(fig, key=plot_key)
 
-def plot_fitted_curves(df, time, observed, fitted, model_name):
-    """
-    Plot a simple observed vs fitted curve for a particular model. 
-    Lines ~760+ from your code.
-    """
-    fig=go.Figure()
+# Update the plot_fitted_curves function to use stable keys
+def plot_fitted_curves(df, time, observed, fitted, model_name, fit_id=None):
+    """Plot a simple observed vs fitted curve for a particular model."""
+    fig = go.Figure()
     fig.add_trace(go.Scatter(x=time,y=observed,mode='lines',name='Observed Data'))
     fig.add_trace(go.Scatter(x=time,y=fitted,mode='lines',name=f'Fitted Curve ({model_name})',line=dict(color='red')))
     fig.update_layout(
@@ -194,50 +208,67 @@ def plot_fitted_curves(df, time, observed, fitted, model_name):
         legend_title='Legend',
         template='plotly_white'
     )
-    st.plotly_chart(fig)
+    # Generate a stable key based on the model name and a unique ID
+    if fit_id is None:
+        fit_id = hash(str(time[0]) + str(time[-1])) % 10000  # Create ID from time range
+    
+    plot_key = f"fitted_curve_{model_name}_{fit_id}"
+    st.plotly_chart(fig, key=plot_key)
 
 def plot_phase_fit_with_ci(phase_fits, operated_data, selected_operated_wells):
     """
-    Summarize multiple phase-based fits with confidence intervals. 
-    Lines ~~ ??? from your code. 
+    Plot all phase fits with confidence intervals on a single plot
     """
-    fig=go.Figure()
-    average_values=operated_data[selected_operated_wells].mean(axis=1)
+    fig = go.Figure()
+    
+    # Add observed data
     fig.add_trace(go.Scatter(
         x=operated_data["Time"],
-        y=average_values,
+        y=operated_data["Average"],
         mode='lines',
         name='Average Data',
-        line=dict(color='black',width=2)
+        line=dict(color='black', width=2)
     ))
-    for fit in phase_fits:
-        phase_num=fit['phase']
-        model_name=fit['model']
-        phase_time=fit['phase_time']
-        y_pred=fit['fit']
-        lower=fit['lower_bound']
-        upper=fit['upper_bound']
-        std_dev=fit['std_dev']
-
-        fig.add_trace(go.Scatter(
-            x=np.concatenate([phase_time,phase_time[::-1]]),
-            y=np.concatenate([lower,upper[::-1]]),
-            fill='toself',
-            fillcolor='rgba(173,216,230,0.4)',
-            line=dict(color='rgba(255,255,255,0)'),
-            hoverinfo="skip",
-            name=f'Phase {phase_num} 95% CI',
-            showlegend=False
-        ))
+    
+    # Add individual fits
+    for phase_num, phase in enumerate(phase_fits):
+        if not phase.get("fit_results"):
+            continue
+            
+        # Get fit data from phase
+        phase_time = phase.get("phase_time", [])
+        y_pred = phase.get("fit", [])
+        lower_bound = phase.get("lower_bound", [])
+        upper_bound = phase.get("upper_bound", [])
+        std_dev = phase.get("std_dev", [])
+        
+        if not len(phase_time) or not len(y_pred):
+            continue
+            
+        # Add fitted curve
         fig.add_trace(go.Scatter(
             x=phase_time,
             y=y_pred,
             mode='lines',
-            name=f'Phase {phase_num} Fit ({model_name})',
+            name=f'Phase {phase_num+1} Fit',
             line=dict(width=2)
         ))
-        upper_sd=(y_pred+std_dev).tolist()
-        lower_sd=(y_pred-std_dev).tolist()
+        
+        # Add confidence intervals
+        fig.add_trace(go.Scatter(
+            x=phase_time.tolist()+phase_time.tolist()[::-1],
+            y=upper_bound.tolist()+lower_bound.tolist()[::-1],
+            fill='toself',
+            fillcolor='rgba(0,176,246,0.2)',
+            line=dict(color='rgba(255,255,255,0)'),
+            hoverinfo="skip",
+            name=f'Phase {phase_num+1} CI',
+            showlegend=False
+        ))
+        
+        # Add standard deviation
+        upper_sd = (y_pred+std_dev).tolist()
+        lower_sd = (y_pred-std_dev).tolist()
         fig.add_trace(go.Scatter(
             x=phase_time.tolist()+phase_time.tolist()[::-1],
             y=upper_sd+lower_sd[::-1],
@@ -245,9 +276,10 @@ def plot_phase_fit_with_ci(phase_fits, operated_data, selected_operated_wells):
             fillcolor='rgba(144,238,144,0.3)',
             line=dict(color='rgba(255,255,255,0)'),
             hoverinfo="skip",
-            name=f'Phase {phase_num} Std Dev',
+            name=f'Phase {phase_num+1} Std Dev',
             showlegend=False
         ))
+    
     fig.update_layout(
         title='All Phase Fits with Confidence Intervals and Standard Deviations',
         xaxis_title='Time',
@@ -255,13 +287,14 @@ def plot_phase_fit_with_ci(phase_fits, operated_data, selected_operated_wells):
         legend_title='Legend',
         template='plotly_white'
     )
+    
     return fig
 
 def display_single_well_preview(df, well_name):
     """
     Display a preview plot for a single well.
     """
-    if well_name and well_name in df.columns:
+    if (well_name and well_name in df.columns):
         fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=df['Time'],
@@ -283,33 +316,37 @@ def display_single_well_preview(df, well_name):
         st.write("No well selected for preview.")
 
 
-def plot_avg_sd_bg_subtracted(data, wells, group_num):
+def plot_avg_sd_bg_subtracted(data, wells, group_num, context="default"):
     """
     Plots the average and standard deviation of background-subtracted data.
-
-    Parameters:
-    - data: DataFrame containing the background-subtracted data.
-    - wells: List of wells to include in the plot.
-    - group_num: Integer representing the group number (used for unique keys).
     """
+    # Filter wells to only include those that exist in the data
+    valid_wells = [well for well in wells if well in data.columns]
+    
+    if not valid_wells:
+        st.warning(f"None of the selected wells exist in the data for group {group_num}")
+        return
+
     # Calculate average and standard deviation
-    avg_data = data[wells].mean(axis=1)
-    std_data = data[wells].std(axis=1)
+    avg_data = data[valid_wells].mean(axis=1)
+    std_data = data[valid_wells].std(axis=1)
 
     # Create the figure
     fig = go.Figure()
 
+    # CRITICAL FIX: Use data['Time'] as x-axis instead of data.index
     # Add average line
     fig.add_trace(go.Scatter(
-        x=data.index,
+        x=data['Time'],  # Changed from data.index to data['Time']
         y=avg_data,
         mode='lines',
         name=f'Group {group_num} Average'
     ))
 
     # Add shaded area for standard deviation
+    # FIX: Use Time column values for x-axis here too
     fig.add_trace(go.Scatter(
-        x=list(data.index) + list(data.index[::-1]),
+        x=list(data['Time']) + list(data['Time'][::-1]),  # Use Time column
         y=list(avg_data + std_data) + list((avg_data - std_data)[::-1]),
         fill='toself',
         fillcolor='rgba(0,100,200,0.2)',
@@ -325,9 +362,13 @@ def plot_avg_sd_bg_subtracted(data, wells, group_num):
         template='plotly_white'
     )
 
-    # Generate a truly unique key using uuid
-    unique_key = f"plot_avg_sd_group_{group_num}_{uuid.uuid4()}"
-    st.plotly_chart(fig, key=unique_key)
+    # Create a unique key that doesn't depend on specific well names
+    # Use a hash of the valid wells rather than the well names themselves
+    wells_hash = hash(tuple(sorted(valid_wells))) % 10000  # Use modulo to keep it reasonable size
+    plot_key = f"plot_avg_sd_group_{group_num}_{context}_{wells_hash}"
+    
+    st.session_state[f"plot_key_group_{group_num}_{context}"] = plot_key
+    st.plotly_chart(fig, key=plot_key)
 
 def plot_raw_vs_corrected(df, group_df, well_name, group_num):
     """Compare raw and background-corrected data for a single well"""
@@ -357,44 +398,47 @@ def plot_raw_vs_corrected(df, group_df, well_name, group_num):
     return fig
 
 def plot_average_blank(df, blank_wells):
-    """Plot the average of blank wells"""
-    import plotly.graph_objects as go
-    import uuid
+    """Plot average of blank wells."""
+    if not blank_wells:
+        st.warning("No blank wells selected.")
+        return
+    
+    # Create a stable key for the plot
+    wells_key = "_".join(sorted(blank_wells)[:3])
+    plot_key = f"blank_wells_{wells_key}_{len(blank_wells)}"
     
     fig = go.Figure()
     
-    # First plot each individual blank well
+    # Plot individual blank wells
     for well in blank_wells:
         if well in df.columns:
             fig.add_trace(go.Scatter(
                 x=df['Time'],
                 y=df[well],
                 mode='lines',
-                opacity=0.3,
-                name=f'Blank: {well}'
+                name=f'Blank {well}',
+                opacity=0.5,
+                line=dict(width=1)
             ))
     
-    # Then plot the average of all blank wells
-    if blank_wells and all(well in df.columns for well in blank_wells):
-        avg_blank = df[blank_wells].mean(axis=1)
-        fig.add_trace(go.Scatter(
-            x=df['Time'],
-            y=avg_blank,
-            mode='lines',
-            name='Average of All Blank Wells',
-            line=dict(color='black', width=3)
-        ))
+    # Plot average of blank wells
+    avg_blank = df[blank_wells].mean(axis=1)
+    fig.add_trace(go.Scatter(
+        x=df['Time'],
+        y=avg_blank,
+        mode='lines',
+        name='Average of Blanks',
+        line=dict(color='black', width=2)
+    ))
     
     fig.update_layout(
-        title='Blank Wells and Their Average',
+        title='Blank Wells Data',
         xaxis_title='Time',
         yaxis_title='OD',
         template='plotly_white'
     )
     
-    # Use a unique key to prevent reuse issues
-    unique_key = f"plot_blank_wells_{uuid.uuid4().hex}"
-    st.plotly_chart(fig, use_container_width=True, key=unique_key)
+    st.plotly_chart(fig, use_container_width=True, key=plot_key)
 
 def plot_blank_fit(df, avg_blank, y_pred, lower_bound, upper_bound, group_num):
     """
