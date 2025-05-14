@@ -488,6 +488,8 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                 for param in params_list:
                     col_a, col_b, col_c, col_d = st.columns(4)
                     with col_a:
+                        # Initialize default_value for each parameter
+                        default_value = 1.0  # Or whatever appropriate default you want
                         # Get smart defaults using the lambda functions
                         if phase["model"] in default_guesses:
                             param_index = params_list.index(param)
