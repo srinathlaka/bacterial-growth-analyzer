@@ -606,7 +606,16 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                         plot_fitted_curves(phase_data, time_vals, y_data, y_pred, phase["model"], phase["id"])
                         plot_confidence_intervals(phase_data, lower_bound_ci, upper_bound_ci, y_pred, phase_data[selected_operated_wells].std(axis=1), phase["id"])
 
-                        param_labels=[f"{p}" for p in phase.get("parameters",[])]
+                        model_name = phase.get("model", "Unknown Model")
+                        param_names = MODEL_PARAMS.get(model_name, [])
+
+                        # Create better parameter labels with units
+                        param_labels = []
+                        for i, param in enumerate(phase.get("parameters", [])):
+                            param_name = param_names[i] if i < len(param_names) else f"Param {i+1}"
+                            unit = PARAMETER_UNITS.get(param_name, "")
+                            param_labels.append(f"{param_name} {unit}")
+
                         param_table=pd.DataFrame({
                             "Parameter": param_labels,
                             "Estimate": popt,

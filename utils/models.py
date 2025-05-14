@@ -39,49 +39,50 @@ def gompertz_growth(t, A, B, C):
     """
     return A * np.exp(-np.exp(B * (C - t)))
 
-# Add or update this dictionary with smart defaults for ALL models:
+# Update these lambdas to return the CORRECT number of parameters for each function:
 default_guesses = {
     "Exponential Growth": lambda y_data, time_vals: [
-        np.min(y_data),  # X0 (initial population)
-        np.log(y_data[-1] / max(y_data[0], 0.01)) / (time_vals[-1] - time_vals[0])  # mu (growth rate)
+        np.log(y_data[-1] / max(y_data[0], 0.01)) / (time_vals[-1] - time_vals[0]),  # mu (growth rate)
+        np.min(y_data)  # X0 (initial population)
     ],
     "Logistic Growth": lambda y_data, time_vals: [
-        np.min(y_data),  # X0 (initial population) 
-        1.1 * np.max(y_data),  # K (carrying capacity)
-        np.log(y_data[-1] / max(y_data[0], 0.01)) / (time_vals[-1] - time_vals[0])  # r (growth rate)
+        np.log(y_data[-1] / max(y_data[0], 0.01)) / (time_vals[-1] - time_vals[0]),  # mu 
+        np.min(y_data),  # X0 
+        1.1 * np.max(y_data)  # K (carrying capacity)
     ],
     "Baranyi Growth": lambda y_data, time_vals: [
-        np.min(y_data),  # y0 (initial population)
-        1.2 * np.max(y_data),  # ymax (max population)
-        np.log(y_data[-1] / max(y_data[0], 0.01)) / (time_vals[-1] - time_vals[0]),  # mu_max (max growth rate)
-        0.1 * (time_vals[-1] - time_vals[0])  # lag (lag time - 10% of total time)
+        np.min(y_data),  # X0
+        np.log(y_data[-1] / max(y_data[0], 0.01)) / (time_vals[-1] - time_vals[0]),  # mu
+        0.1  # q0 - simplified
     ],
     "Lag-Exponential-Saturation Growth": lambda y_data, time_vals: [
-        np.min(y_data),  # y0
-        1.2 * np.max(y_data),  # ymax
-        np.log(y_data[-1] / max(y_data[0], 0.01)) / (time_vals[-1] - time_vals[0]),  # mu_max
-        0.2 * (time_vals[-1] - time_vals[0]),  # t_lag
-        0.8 * (time_vals[-1] - time_vals[0])   # t_max
+        np.log(y_data[-1] / max(y_data[0], 0.01)) / (time_vals[-1] - time_vals[0]),  # mu
+        np.min(y_data),  # X0
+        0.1,  # q0
+        1.2 * np.max(y_data)  # K
     ],
     "Gompertz Growth": lambda y_data, time_vals: [
-        np.min(y_data),  # A (lower asymptote)
-        np.max(y_data) - np.min(y_data),  # C (upper - lower asymptote)
-        np.log(y_data[-1] / max(y_data[0], 0.01)) / (time_vals[-1] - time_vals[0]),  # B (growth rate)
-        0.3 * (time_vals[-1] - time_vals[0])   # M (time at max growth)
+        1.2 * np.max(y_data),  # A (asymptote)
+        0.5,  # B (growth rate coefficient)
+        0.3 * (time_vals[-1] - time_vals[0])  # C (inflection point time)
+    ],
+    "Power Law": lambda y_data, time_vals: [
+        0.1,  # a
+        0.5,  # n
+        np.min(y_data)  # b
     ]
-    # Add other models as needed
 }
 
 MODEL_PARAMS = {
-    "Power Law":["a","n","b"],  # Changed from "Polynomial Growth"
-    "Polynomial Function":["a","b","c"],
+    "Power Law": ["a", "n", "b"],
+    "Polynomial Function": ["a", "b", "c"],
     "Exponential Growth": ["X0", "mu"],
-    "Logistic Growth": ["X0", "K", "r"],
-    "Baranyi Growth": ["y0", "ymax", "mu_max", "lag"],
-    "Lag-Exponential-Saturation Growth": ["y0", "ymax", "mu_max", "t_lag", "t_max"],
-    "Gompertz Growth": ["A", "C", "B", "M"],
-    "Custom Function":[],
-    "Automatic Fit":[]
+    "Logistic Growth": ["X0", "K", "mu"],  # Changed 'r' to 'mu' to match function
+    "Baranyi Growth": ["X0", "mu", "q0"],  # Changed to match function parameters
+    "Lag-Exponential-Saturation Growth": ["mu", "X0", "q0", "K"],  # Match function
+    "Gompertz Growth": ["A", "B", "C"],  # Match function parameters
+    "Custom Function": [],
+    "Automatic Fit": []
 }
 
 MODEL_FUNCTIONS={
@@ -95,8 +96,15 @@ MODEL_FUNCTIONS={
     "Automatic Fit":None
 }
 
-PARAMETER_UNITS={
-    "mu":"[1/time]",
-    "X0":"[OD]",
-    "K":"[OD]"
+PARAMETER_UNITS = {
+    "mu": "[1/time]",
+    "X0": "[OD]",
+    "K": "[OD]",
+    "q0": "[dimensionless]",
+    "A": "[OD]",
+    "B": "[1/time]",
+    "C": "[time]",
+    "a": "[OD/time^n]",
+    "n": "[dimensionless]",
+    "b": "[OD]"
 }
