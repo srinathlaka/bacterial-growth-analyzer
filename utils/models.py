@@ -76,11 +76,11 @@ default_guesses = {
 MODEL_PARAMS = {
     "Power Law": ["a", "n", "b"],
     "Polynomial Function": ["a", "b", "c"],
-    "Exponential Growth": ["X0", "mu"],
-    "Logistic Growth": ["X0", "K", "mu"],  # Changed 'r' to 'mu' to match function
-    "Baranyi Growth": ["X0", "mu", "q0"],  # Changed to match function parameters
-    "Lag-Exponential-Saturation Growth": ["mu", "X0", "q0", "K"],  # Match function
-    "Gompertz Growth": ["A", "B", "C"],  # Match function parameters
+    "Exponential Growth": ["mu", "X0"],
+    "Logistic Growth": ["mu", "X0", "K"],
+    "Baranyi Growth": ["X0", "mu", "q0"],
+    "Lag-Exponential-Saturation Growth": ["mu", "X0", "q0", "K"],
+    "Gompertz Growth": ["A", "B", "C"],
     "Custom Function": [],
     "Automatic Fit": []
 }
