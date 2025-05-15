@@ -424,6 +424,13 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                         # Don't clear the inputs on error - they're already preserved in session state
                         phase["parameters"] = phase["custom_params"]
                 elif phase["model"] == "Automatic Fit":
+                    st.info("""
+                    **What is AIC?**
+                    
+                    When using Automatic Fit, the software compares several candidate models and selects the one with the lowest AIC (Akaike Information Criterion).
+                    
+                    **AIC** is a statistical measure that balances model fit and complexity. It rewards models that fit the data well, but penalizes models that use too many parameters (to avoid overfitting). Lower AIC values indicate a better model for your data among the candidates tested.
+                    """)
                     st.info("Automatic Fit: evaluating candidate models.")
                     best_model, best_popt, best_pcov, best_aic, best_candidate = None,None,None,np.inf,None
                     from utils.models import MODEL_FUNCTIONS, MODEL_PARAMS, default_guesses
@@ -439,9 +446,7 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                                 if callable(default_guesses[candidate]):
                                     guesses = default_guesses[candidate](y_data, time_vals)
                                 else:
-                                    guesses = default_guesses[candidate]
-                            else:
-                                guesses = [1.0] * len(MODEL_PARAMS.get(candidate, []))
+                                    guesses = [1.0] * len(MODEL_PARAMS.get(candidate, []))
                                 
                             popt_candidate, pcov_candidate = curve_fit(cf_model_func, time_vals, y_data, p0=guesses)
                             y_pred_candidate = cf_model_func(time_vals, *popt_candidate)

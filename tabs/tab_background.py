@@ -33,23 +33,6 @@ def _store_ui_state(key, value):
 def display_tab_background():
     st.header("Sample Selection & Background Subtraction")
     
-    # Add debug expander at the top
-    with st.expander("Debug Session State", expanded=False):
-        st.write("### Session State Keys")
-        state_data = {
-            "groups_data exists": "groups_data" in st.session_state,
-            "groups_data keys": list(st.session_state.get("groups_data", {}).keys()),
-            "operated_data exists": "operated_data" in st.session_state,
-            "bg_subtraction_skipped": st.session_state.get("bg_subtraction_skipped", False)
-        }
-        st.json(state_data)
-        
-        # Show details of groups_data if it exists
-        if "groups_data" in st.session_state:
-            for key, data in st.session_state["groups_data"].items():
-                if isinstance(data, pd.DataFrame):
-                    st.write(f"**{key}** shape: {data.shape}")
-    
     # Check if data is loaded from Tab 1
     if 'df' not in st.session_state or st.session_state['df'] is None:
         st.error("Please upload a data file in the Upload tab first.")
