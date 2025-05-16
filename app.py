@@ -5,10 +5,16 @@ from tabs import (
     tab_background,
     tab_operations,
     tab_fitting,
-    tab_ode_analysis,
     tab_phase_detection,
     tab_growth_models
 )
+
+# Only import tab_ode_analysis if the file exists
+try:
+    from tabs import tab_ode_analysis
+except ImportError:
+    tab_ode_analysis = None
+    # Optionally: st.warning("ODE Analysis tab is not available.")
 
 def main():
     st.set_page_config(

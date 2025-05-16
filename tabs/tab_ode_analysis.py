@@ -181,6 +181,13 @@ def display_tab_ode_analysis():
                                     t_eval=sub_data["Time"].values,
                                     method="RK45"
                                 )
+                                
+                                # Add this after your solve_ivp call but before displaying results:
+
+                                # Check for numerical issues in the solution
+                                if np.any(np.isinf(sol_nom.y)) or np.any(np.isnan(sol_nom.y)) or np.any(sol_nom.y > 1e15):
+                                    st.warning("⚠️ Numerical overflow detected. Try reducing simulation time, adjusting parameter values, or using a different solver method (e.g., 'BDF' instead of 'RK45').")
+
                                 if not sol_nom.success:
                                     st.warning(f"Solver failed after fitting: {sol_nom.message}")
 

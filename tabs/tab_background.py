@@ -216,6 +216,8 @@ def display_tab_background():
                     if well in group_df.columns:
                         # Clip negative values to zero when creating temp_df
                         temp_df[well] = group_df[well].clip(lower=0)
+                    else:
+                        st.warning(f"Column '{well}' not found in uploaded data. Please check your file and well selection.")
                 
                 # Plot average and standard deviation
                 plot_avg_sd_bg_subtracted(temp_df, sample_wells, group_num, context="initial")
@@ -332,6 +334,8 @@ def display_tab_background():
                                 raw_data[well] = np.maximum(col_data, 0)
                             else:
                                 st.warning(f"Column '{well}' contains non-numeric data and will be skipped. Please check your file format.")
+                        else:
+                            st.warning(f"Column '{well}' not found in uploaded data. Please check your file and well selection.")
                     
                     # CRITICAL: Verify that all data is properly clipped to zero
                     for col in raw_data.columns:
