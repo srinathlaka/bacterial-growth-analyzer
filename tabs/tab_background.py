@@ -326,8 +326,12 @@ def display_tab_background():
                     # Add each sample well, explicitly clipping negative values to zero
                     for well in sample_wells:
                         if well in group_df.columns:
-                            # Clip negative values to zero (THIS IS CRITICAL)
-                            raw_data[well] = np.maximum(group_df[well].values, 0)
+                            # Only process if the column is numeric
+                            col_data = group_df[well].values
+                            if np.issubdtype(col_data.dtype, np.number):
+                                raw_data[well] = np.maximum(col_data, 0)
+                            else:
+                                st.warning(f"Column '{well}' contains non-numeric data and will be skipped. Please check your file format.")
                     
                     # CRITICAL: Verify that all data is properly clipped to zero
                     for col in raw_data.columns:
@@ -479,44 +483,48 @@ def _fit_power_law(df, blank_wells, group_num):
     if not blank_wells or not all(well in df.columns for well in blank_wells):
         st.warning("Some selected blank wells are not found in the data.")
         return
-    
-    avg_blank = df[blank_wells].mean(axis=1)
+
+    # Only use numeric blank wells, warn and skip non-numeric
+    numeric_blank_wells = []
+    for well in blank_wells:
+        if np.issubdtype(df[well].dtype, np.number):
+            numeric_blank_wells.append(well)
+        else:
+            st.warning(f"Blank well '{well}' contains non-numeric data and will be skipped.")
+    if not numeric_blank_wells:
+        st.warning("No numeric blank wells available for fitting. Please check your file format.")
+        return
+
+    avg_blank = df[numeric_blank_wells].mean(axis=1)
     time_vals = df['Time'].values
-    
+
     try:
         # Initial parameter guesses for power law fit (a, b, c)
         initial_guess = [0.1, 0.1, 0.1]
-        
         # Fit the power law model
         popt, pcov = curve_fit(power_law, time_vals, avg_blank, p0=initial_guess)
-        
         # Store the fitting parameters
         st.session_state[f"group_{group_num}_fitting"] = {
             "model": "power_law",
             "parameters": popt.tolist()
         }
-        
         # Generate predictions and confidence intervals
         y_pred = power_law(time_vals, *popt)
         residuals = avg_blank - y_pred
         residual_variance = np.var(residuals, ddof=len(popt))
         dof = len(avg_blank) - len(popt)
-        
         # Compute confidence intervals
         alpha = 0.05  # 95% confidence interval
         lower_bound, upper_bound = compute_confidence_intervals(
             time_vals, popt, pcov, alpha, dof, residual_variance, power_law
         )
-        
         # Plot the fitted model
         fig = plot_blank_fit(df, avg_blank, y_pred, lower_bound, upper_bound, group_num)
         st.plotly_chart(fig, use_container_width=True)
-        
         # Display fit parameters
         st.success(f"Power Law Fit: y = {popt[0]:.4f} * x^{popt[1]:.4f} + {popt[2]:.4f}")
-        
-    except Exception as e:
-        st.error(f"Error fitting power law model: {str(e)}")
+    except Exception:
+        st.warning("Could not fit the power law model. Please check your data for numeric values and try again.")
 
 def _fit_polynomial(df, blank_wells, group_num):
     """Fit a polynomial model to blank wells data"""

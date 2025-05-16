@@ -1,4 +1,3 @@
-
 # 🧪 Bacterial Growth Analyzer
 
 A modular **Streamlit-based web application** for analyzing bacterial growth from optical density (OD) measurements.  
@@ -76,9 +75,25 @@ Each **utils** file contains reusable logic, such as file reading, background su
 
 ---
 
+## Modes
+
+- **Basic Mode:**
+  - For beginners or quick analysis
+  - Only one group, simplified workflow, fewer tabs
+  - No multi-group or advanced config
+
+- **Advanced Mode:**
+  - For power users
+  - Multi-group support, JSON config, ODE analysis, all tabs
+  - More control and flexibility
+
+---
+
 ## 📊 How to Use
 
 1. **Upload Data**  
+   ⚠️ **Important:** Upload files **without headers**—just raw numeric data, with the first row as the first time point.  
+   See the example spreadsheet in the app for the correct format.  
    - **Tab 1**: Upload `.csv` or `.xlsx` files with time + well data.  
    - Select your plate layout (rows × columns) and confirm the raw data.
 

@@ -13,22 +13,32 @@ import json
 def read_data(uploaded_file, rows, columns):
     """
     Reads CSV or XLSX from Streamlit's file_uploader and adjusts layout.
+    Automatically drops the first row if it looks like a header (e.g., contains 'Time').
     """
     if uploaded_file is None:
         return None
     try:
         if uploaded_file.name.endswith(".xlsx"):
-            df=pd.read_excel(uploaded_file, header=None)
+            df = pd.read_excel(uploaded_file, header=None)
         elif uploaded_file.name.endswith(".csv"):
-            df=pd.read_csv(uploaded_file, header=None)
+            df = pd.read_csv(uploaded_file, header=None)
         else:
-            st.error("Unsupported file format.")
+            st.warning("Check your file format: Only .csv or .xlsx files are supported.")
             return None
-        df=adjust_dataframe_layout(df, rows, columns)
+        # If the first cell is a string and matches 'Time' (case-insensitive), drop the first row
+        if isinstance(df.iloc[0,0], str) and df.iloc[0,0].strip().lower() == 'time':
+            st.warning("It looks like your file has a header row. Please upload files WITHOUT headers—just raw numeric data, with the first row as the first time point. Example files are available in the app.")
+            df = df.iloc[1:].reset_index(drop=True)
+        # Check for any column that is entirely non-numeric (e.g., text columns)
+        non_numeric_cols = [col for col in df.columns if not np.issubdtype(df[col].dtype, np.number)]
+        if non_numeric_cols:
+            st.warning(f"Your file contains non-numeric columns ({', '.join(str(c) for c in non_numeric_cols)}). This format is not supported. Please upload a numeric data file.")
+            return None
+        df = adjust_dataframe_layout(df, rows, columns)
         st.success("File uploaded successfully!")
         return df
     except Exception as e:
-        st.error(f"Error reading file: {e}")
+        st.warning("Check your file format. Unable to read the file as expected.")
         return None
 
 def create_example_data():
