@@ -1,9 +1,9 @@
 numpy>=1.26.0
-pandas==2.2.3
+pandas==2.2.2
 Pillow==11.1.0
 plotly==5.21.0
 scipy==1.15.2
 streamlit==1.40.2
-sympy==1.12.1
+sympy==1.13.3
 openpyxl
 setuptools>=68.0.0

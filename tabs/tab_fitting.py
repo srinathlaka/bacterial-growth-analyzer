@@ -288,10 +288,10 @@ def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
             parameter_labels = [f"{p}" for p in param_names]
             param_table = pd.DataFrame({
                 "Parameter": parameter_labels,
-                "Estimate": popt,
-                "Std. Error": perr,
-                "t-Statistic": t_statistic,
-                "p-Value": [f"{p:.6e}" for p in p_values]  # Always use scientific notation with 6 decimal places
+                "Estimate": [format_scientific(val) for val in popt],
+                "Std. Error": [format_scientific(val) for val in perr],
+                "t-Statistic": [format_scientific(val) for val in t_statistic],
+                "p-Value": [format_scientific(p) for p in p_values]
             })
             st.dataframe(param_table)
     except Exception as e:
@@ -623,10 +623,10 @@ def _display_existing_phases(operated_data, selected_operated_wells):
 
                         param_table=pd.DataFrame({
                             "Parameter": param_labels,
-                            "Estimate": popt,
-                            "Std. Error": perr,
-                            "t-Statistic": t_statistic,
-                            "p-Value": [f"{p:.3g}" for p in p_values],  # 3 significant digits
+                            "Estimate": [format_scientific(val) for val in popt],
+                            "Std. Error": [format_scientific(val) for val in perr],
+                            "t-Statistic": [format_scientific(val) for val in t_statistic],
+                            "p-Value": [format_scientific(p) for p in p_values],
                             "Fit Quality": ["POOR" if variance_ratio > 0.2 or R_squared < 0.90 else "GOOD" for _ in popt],
                             "R²": [R_squared for _ in popt],  # Add R² for context
                             "Variance Ratio": [variance_ratio for _ in popt]  # Add variance ratio for context
@@ -636,3 +636,17 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                         st.error(f"Error fitting model for Fit {i+1}: {e_fit}")
             except Exception as e_manual:
                 st.error(f"Error in manual fitting for Fit {i+1}: {e_manual}")
+
+def format_scientific(value, precision=6):
+    """
+    Format value in scientific notation with appropriate precision based on magnitude.
+    """
+    try:
+        float_val = float(value)
+        abs_val = abs(float_val)
+        if abs_val < 0.001 or abs_val > 1000:
+            return f"{float_val:.{precision}e}"
+        else:
+            return f"{float_val:.{precision}f}".rstrip('0').rstrip('.') if '.' in f"{float_val:.{precision}f}" else f"{float_val}"
+    except Exception:
+        return str(value)
