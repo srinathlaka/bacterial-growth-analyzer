@@ -101,6 +101,7 @@ PARAMETER_UNITS = {
     "X0": "[OD]",
     "K": "[OD]",
     "q0": "[dimensionless]",
+    "lag_time": "[time]",
     "A": "[OD]",
     "B": "[1/time]",
     "C": "[time]",

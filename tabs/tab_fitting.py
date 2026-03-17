@@ -14,7 +14,7 @@ from utils.plotting import (
     plot_phase_fit_with_ci
 )
 from utils.file_io import create_custom_model
-from utils.fitting import compute_confidence_intervals
+from utils.fitting import compute_confidence_intervals, compute_lag_time
 from utils.models import (
     MODEL_PARAMS,
     MODEL_FUNCTIONS,
@@ -156,7 +156,7 @@ def display_tab_fitting():
 
 
 def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
-    from utils.fitting import compute_confidence_intervals
+    from utils.fitting import compute_confidence_intervals, compute_lag_time
     from utils.plotting import plot_fitted_curves, plot_confidence_intervals
     from scipy.optimize import curve_fit
     from scipy.stats import t as t_dist
@@ -268,6 +268,18 @@ def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
                 "t_statistic": t_statistic,
                 "p_values": p_values
             }
+
+            if model in ["Baranyi Growth", "Lag-Exponential-Saturation Growth"] and "q0" in param_names and "mu" in param_names:
+                q0_idx = param_names.index("q0")
+                mu_idx = param_names.index("mu")
+                lag_time, lag_time_std_err = compute_lag_time(
+                    q0=popt[q0_idx],
+                    mu=popt[mu_idx],
+                    q0_std_err=perr[q0_idx],
+                    mu_std_err=perr[mu_idx]
+                )
+                fit_results["lag_time"] = lag_time
+                fit_results["lag_time_std_err"] = lag_time_std_err
             phase_dict["fit_results"] = fit_results
             phase_dict["phase_time"] = time_vals
             phase_dict["fit"] = y_pred
@@ -293,6 +305,25 @@ def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
                 "t-Statistic": [format_scientific(val) for val in t_statistic],
                 "p-Value": [format_scientific(p) for p in p_values]
             })
+
+            if model in ["Baranyi Growth", "Lag-Exponential-Saturation Growth"] and "q0" in param_names and "mu" in param_names:
+                q0_idx = param_names.index("q0")
+                mu_idx = param_names.index("mu")
+                lag_time, lag_time_std_err = compute_lag_time(
+                    q0=popt[q0_idx],
+                    mu=popt[mu_idx],
+                    q0_std_err=perr[q0_idx],
+                    mu_std_err=perr[mu_idx]
+                )
+                lag_row = pd.DataFrame([{
+                    "Parameter": f"lag_time {PARAMETER_UNITS.get('lag_time', '[time]')}",
+                    "Estimate": format_scientific(lag_time) if lag_time is not None else "N/A",
+                    "Std. Error": format_scientific(lag_time_std_err) if lag_time_std_err is not None else "N/A",
+                    "t-Statistic": "N/A",
+                    "p-Value": "N/A"
+                }])
+                param_table = pd.concat([param_table, lag_row], ignore_index=True)
+
             st.dataframe(param_table)
     except Exception as e:
         st.error(f"Error processing JSON file: {e}")
@@ -301,7 +332,7 @@ def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
 def _display_existing_phases(operated_data, selected_operated_wells):
     from utils.plotting import plot_fitted_curves, plot_confidence_intervals
     from utils.models import MODEL_FUNCTIONS, MODEL_PARAMS, default_guesses
-    from utils.fitting import compute_confidence_intervals
+    from utils.fitting import compute_confidence_intervals, compute_lag_time
     from scipy.optimize import curve_fit
     from scipy.stats import t as t_dist
 
@@ -595,6 +626,21 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                             "t_statistic":t_statistic,
                             "p-Values":p_values
                         }
+
+                        current_model_name = phase.get("model", "Unknown Model")
+                        if current_model_name in ["Baranyi Growth", "Lag-Exponential-Saturation Growth"]:
+                            model_param_names = MODEL_PARAMS.get(current_model_name, [])
+                            if "q0" in model_param_names and "mu" in model_param_names:
+                                q0_idx = model_param_names.index("q0")
+                                mu_idx = model_param_names.index("mu")
+                                lag_time, lag_time_std_err = compute_lag_time(
+                                    q0=popt[q0_idx],
+                                    mu=popt[mu_idx],
+                                    q0_std_err=perr[q0_idx],
+                                    mu_std_err=perr[mu_idx]
+                                )
+                                phase["fit_results"]["lag_time"] = lag_time
+                                phase["fit_results"]["lag_time_std_err"] = lag_time_std_err
                         phase.setdefault("phase", i+1)
                         phase["phase_time"]=time_vals
                         phase["fit"]=y_pred
@@ -631,6 +677,28 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                             "R²": [R_squared for _ in popt],  # Add R² for context
                             "Variance Ratio": [variance_ratio for _ in popt]  # Add variance ratio for context
                         })
+
+                        if model_name in ["Baranyi Growth", "Lag-Exponential-Saturation Growth"] and "q0" in param_names and "mu" in param_names:
+                            q0_idx = param_names.index("q0")
+                            mu_idx = param_names.index("mu")
+                            lag_time, lag_time_std_err = compute_lag_time(
+                                q0=popt[q0_idx],
+                                mu=popt[mu_idx],
+                                q0_std_err=perr[q0_idx],
+                                mu_std_err=perr[mu_idx]
+                            )
+                            lag_row = pd.DataFrame([{
+                                "Parameter": f"lag_time {PARAMETER_UNITS.get('lag_time', '[time]')}",
+                                "Estimate": format_scientific(lag_time) if lag_time is not None else "N/A",
+                                "Std. Error": format_scientific(lag_time_std_err) if lag_time_std_err is not None else "N/A",
+                                "t-Statistic": "N/A",
+                                "p-Value": "N/A",
+                                "Fit Quality": "POOR" if variance_ratio > 0.2 or R_squared < 0.90 else "GOOD",
+                                "R²": R_squared,
+                                "Variance Ratio": variance_ratio
+                            }])
+                            param_table = pd.concat([param_table, lag_row], ignore_index=True)
+
                         st.dataframe(param_table, key=f"param_table_{phase['id']}")
                     except Exception as e_fit:
                         st.error(f"Error fitting model for Fit {i+1}: {e_fit}")
