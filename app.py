@@ -1,8 +1,8 @@
 import streamlit as st
 import os
 
-# Bump this on each release; shown in the footer.
-LAST_UPDATED = "2026-08-05"
+# Bump this on each release; shown in the footer (DD-MM-YYYY).
+LAST_UPDATED = "05-08-2026"
 
 from tabs import (
     tab_upload,
