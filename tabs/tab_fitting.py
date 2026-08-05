@@ -162,13 +162,13 @@ def display_tab_fitting():
             })
         editable_json = json.dumps(config_fits, indent=2)
         edited_json = st.text_area("Edit Fit Configuration JSON:", value=editable_json, height=200)
-        if st.button("Download Fit Configuration JSON"):
-            st.download_button(
-                label="💾 Download JSON",
-                data=edited_json,
-                file_name="fit_configuration.json",
-                mime="application/json"
-            )
+        st.download_button(
+            label="💾 Download Fit Configuration JSON",
+            data=edited_json,
+            file_name="fit_configuration.json",
+            mime="application/json",
+            key="download_fit_config_json"
+        )
     else:
         st.info("No fit results to summarize.")
 
@@ -334,8 +334,35 @@ def _display_existing_phases(operated_data, selected_operated_wells):
         with st.expander(f"Manual Fit {i+1}"):
             try:
                 t_interval = phase.get("time_interval", {})
-                fit_start = st.text_input(f"Start Time for Fit {i+1}", value=str(t_interval.get("start", operated_data['Time'].min())), key=f"start_{i}")
-                fit_end = st.text_input(f"End Time for Fit {i+1}", value=str(t_interval.get("end", operated_data['Time'].max())), key=f"end_{i}")
+                data_min = float(operated_data['Time'].min())
+                data_max = float(operated_data['Time'].max())
+
+                def _clamp(value, fallback):
+                    # A phase loaded from JSON may fall outside the current data
+                    # range; number_input rejects a value outside min/max.
+                    try:
+                        return min(max(float(value), data_min), data_max)
+                    except (TypeError, ValueError):
+                        return fallback
+
+                fit_start = st.number_input(
+                    f"Start Time for Fit {i+1}",
+                    min_value=data_min,
+                    max_value=data_max,
+                    value=_clamp(t_interval.get("start", data_min), data_min),
+                    step=0.1,
+                    format="%.5f",
+                    key=f"start_{i}"
+                )
+                fit_end = st.number_input(
+                    f"End Time for Fit {i+1}",
+                    min_value=data_min,
+                    max_value=data_max,
+                    value=_clamp(t_interval.get("end", data_max), data_max),
+                    step=0.1,
+                    format="%.5f",
+                    key=f"end_{i}"
+                )
                 phase["time_interval"] = {"start": float(fit_start), "end": float(fit_end)}
 
                 # Delete Fit

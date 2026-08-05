@@ -20,15 +20,17 @@ def display_tab_operations():
         groups_data["Group_1_bg_subtracted"] = operated_data
         st.session_state["groups_data"] = groups_data
     
-    # Debug information
-    with st.expander("Debug Information"):
-        st.write(f"groups_data keys: {list(st.session_state.get('groups_data', {}).keys())}")
-        st.write(f"bg_subtraction_skipped: {st.session_state.get('bg_subtraction_skipped', False)}")
-        st.write(f"multi_group_bg_skipped: {st.session_state.get('multi_group_bg_skipped', False)}")
-        st.write(f"operated_data exists: {'operated_data' in st.session_state}")
-        for i in range(1, 5):  # Check for up to 4 groups
-            st.write(f"group_{i}_raw_data exists: {f'group_{i}_raw_data' in st.session_state}")
-    
+    # Debug information (hidden unless debug mode is enabled in the sidebar)
+    if st.session_state.get("debug_mode", False):
+        with st.expander("Debug Information"):
+            st.write(f"groups_data keys: {list(st.session_state.get('groups_data', {}).keys())}")
+            st.write(f"bg_subtraction_skipped: {st.session_state.get('bg_subtraction_skipped', False)}")
+            st.write(f"multi_group_bg_skipped: {st.session_state.get('multi_group_bg_skipped', False)}")
+            st.write(f"operated_data exists: {'operated_data' in st.session_state}")
+            for i in range(1, 5):  # Check for up to 4 groups
+                st.write(f"group_{i}_raw_data exists: {f'group_{i}_raw_data' in st.session_state}")
+
+
     # Cross-copy data from operated_data to groups_data if needed
     if "operated_data" in st.session_state and not st.session_state.get("groups_data"):
         # Set up groups_data

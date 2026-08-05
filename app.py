@@ -105,6 +105,12 @@ def main():
     </style>
     """, unsafe_allow_html=True)
     
+    # Debug panel is gated on a URL parameter (append ?debug=1) rather than a
+    # visible control, so ordinary visitors never see internal state details.
+    st.session_state["debug_mode"] = (
+        str(st.query_params.get("debug", "")).lower() in ("1", "true", "yes")
+    )
+
     # Initialize user level if not set
     if "user_level" not in st.session_state:
         st.session_state["user_level"] = "Basic"
@@ -219,7 +225,12 @@ def main():
             # Navigation
             st.write("### Navigation")
             for tab in basic_tabs:
-                if st.button(tabs[tab]["title"], key=f"tab_{tab}"):
+                if st.button(
+                    tabs[tab]["title"],
+                    key=f"tab_{tab}",
+                    type="primary" if tab == current_tab else "secondary",
+                    use_container_width=True
+                ):
                     st.session_state["current_tab"] = tab
                     st.rerun()
         else:
@@ -246,10 +257,39 @@ def main():
             # Navigation
             st.write("### Navigation")
             for tab_name, tab_info in all_tabs:
-                if st.button(tab_info["title"], key=f"tab_{tab_name}"):
+                if st.button(
+                    tab_info["title"],
+                    key=f"tab_{tab_name}",
+                    type="primary" if tab_name == current_tab else "secondary",
+                    use_container_width=True
+                ):
                     st.session_state["current_tab"] = tab_name
                     st.rerun()
-    
+
+        # Session controls
+        st.divider()
+
+        if st.session_state.get("confirm_reset", False):
+            st.warning("Clear all uploaded data, fits and settings?")
+            col_yes, col_no = st.columns(2)
+            with col_yes:
+                if st.button("Yes, reset", key="confirm_reset_yes", type="primary",
+                             use_container_width=True):
+                    preserved = {"user_level": st.session_state.get("user_level", "Basic")}
+                    st.session_state.clear()
+                    st.session_state.update(preserved)
+                    st.session_state["current_tab"] = "Upload"
+                    st.rerun()
+            with col_no:
+                if st.button("Cancel", key="confirm_reset_no", use_container_width=True):
+                    st.session_state["confirm_reset"] = False
+                    st.rerun()
+        else:
+            if st.button("🔄 Start over", key="start_over", use_container_width=True,
+                         help="Clear all data and start a new analysis."):
+                st.session_state["confirm_reset"] = True
+                st.rerun()
+
     # Display the current tab with header based on mode
     current_tab = st.session_state.get("current_tab", "Upload")
     
