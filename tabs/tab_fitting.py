@@ -14,7 +14,7 @@ from utils.plotting import (
     plot_phase_fit_with_ci
 )
 from utils.file_io import create_custom_model
-from utils.fitting import compute_confidence_intervals, compute_lag_time
+from utils.fitting import compute_confidence_intervals, compute_lag_time, compute_fit_statistics
 from utils.models import (
     MODEL_PARAMS,
     MODEL_FUNCTIONS,
@@ -129,6 +129,19 @@ def display_tab_fitting():
             
             # Use the stable key for the plot
             st.plotly_chart(fig_summary, use_container_width=True, key=summary_key)
+
+            # Tidy results table + CSV export
+            st.markdown("#### Fitted Parameters (All Fits)")
+            results_table = build_results_table(fitted_phases)
+            if not results_table.empty:
+                st.dataframe(results_table, key="all_fit_results_table")
+                st.download_button(
+                    label="📥 Download Results CSV",
+                    data=results_table.to_csv(index=False).encode("utf-8"),
+                    file_name="fit_results.csv",
+                    mime="text/csv",
+                    key="download_fit_results_csv"
+                )
         else:
             st.info("No fits available to generate a summary plot.")
 
@@ -156,11 +169,6 @@ def display_tab_fitting():
 
 
 def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
-    from utils.fitting import compute_confidence_intervals, compute_lag_time
-    from utils.plotting import plot_fitted_curves, plot_confidence_intervals
-    from scipy.optimize import curve_fit
-    from scipy.stats import t as t_dist
-
     try:
         fit_config = json.load(uploaded_json_fit)
         auto_fits = fit_config.get("fit_configuration", [])
@@ -218,38 +226,26 @@ def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
                 st.error(f"Fitting failed for {start}-{end}: {e_fit}")
                 continue
 
-            y_pred = model_func(time_vals, *popt)
-            residuals = y_data - y_pred
-            if len(y_data) - len(popt) <= 0:
+            stats = compute_fit_statistics(time_vals, y_data, popt, pcov, model_func, param_names)
+            if stats is None:
                 st.error(
                     f"Not enough data points ({len(y_data)}) to fit {len(popt)} parameters "
                     f"in interval {start}-{end}. Widen the time window or choose a simpler model."
                 )
                 continue
-            residual_variance = np.var(residuals, ddof=len(popt))
-            dof = len(y_data) - len(popt)
-            lower_bound_ci, upper_bound_ci = compute_confidence_intervals(time_vals, popt, pcov, 0.05, dof, residual_variance, model_func)
-            perr = np.sqrt(np.diag(pcov))
 
-            RSS = np.sum(residuals**2)
-            # Calculate Total Sum of Squares and R-squared - THIS IS MISSING
-            TSS = np.sum((y_data - np.mean(y_data))**2)
-            R_squared = 1 - (RSS / TSS)
+            y_pred = stats["y_pred"]
+            perr = stats["param_errors"]
+            t_statistic = stats["t_statistic"]
+            p_values = stats["p_values"]
+            AIC = stats["AIC"]
+            R_squared = stats["R_squared"]
+            variance_ratio = stats["variance_ratio"]
+            lower_bound_ci = stats["lower_bound"]
+            upper_bound_ci = stats["upper_bound"]
 
-            AIC = 2*len(popt) + len(y_data)*np.log(RSS/len(y_data))
-            t_statistic = popt / perr
-
-            # Use residual variance relative to data variance as a better quality check
-            data_variance = np.var(y_data)
-            variance_ratio = residual_variance / data_variance
-            if variance_ratio > 0.2 or R_squared < 0.90:  # Poor fit conditions
+            if stats["poor_fit"]:
                 st.warning(f"⚠️ Model fit quality is questionable (R² = {R_squared:.4f}, Variance ratio = {variance_ratio:.4f})")
-                # Adjust p-values to reflect poor fit quality
-                p_values = [0.5 for _ in popt]  # Assign a high p-value for poor fits
-            else:
-                # For good fits, calculate normal p-values
-                raw_p_values = 2 * (1 - t_dist.cdf(np.abs(t_statistic), df=dof))
-                p_values = raw_p_values  # Use actual p-values for good fits
 
             phase_dict = {
                 "id": str(uuid.uuid4()),
@@ -274,15 +270,9 @@ def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
                 "p_values": p_values
             }
 
-            if model in ["Baranyi Growth", "Lag-Exponential-Saturation Growth"] and "q0" in param_names and "mu" in param_names:
-                q0_idx = param_names.index("q0")
-                mu_idx = param_names.index("mu")
-                lag_time, lag_time_std_err = compute_lag_time(
-                    q0=popt[q0_idx],
-                    mu=popt[mu_idx],
-                    q0_std_err=perr[q0_idx],
-                    mu_std_err=perr[mu_idx]
-                )
+            lag_time = stats["lag_time"]
+            lag_time_std_err = stats["lag_time_std_err"]
+            if lag_time is not None:
                 fit_results["lag_time"] = lag_time
                 fit_results["lag_time_std_err"] = lag_time_std_err
             phase_dict["fit_results"] = fit_results
@@ -311,15 +301,7 @@ def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
                 "p-Value": [format_scientific(p) for p in p_values]
             })
 
-            if model in ["Baranyi Growth", "Lag-Exponential-Saturation Growth"] and "q0" in param_names and "mu" in param_names:
-                q0_idx = param_names.index("q0")
-                mu_idx = param_names.index("mu")
-                lag_time, lag_time_std_err = compute_lag_time(
-                    q0=popt[q0_idx],
-                    mu=popt[mu_idx],
-                    q0_std_err=perr[q0_idx],
-                    mu_std_err=perr[mu_idx]
-                )
+            if lag_time is not None:
                 lag_row = pd.DataFrame([{
                     "Parameter": f"lag_time {PARAMETER_UNITS.get('lag_time', '[time]')}",
                     "Estimate": format_scientific(lag_time) if lag_time is not None else "N/A",
@@ -337,9 +319,8 @@ def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
 def _display_existing_phases(operated_data, selected_operated_wells):
     from utils.plotting import plot_fitted_curves, plot_confidence_intervals
     from utils.models import MODEL_FUNCTIONS, MODEL_PARAMS, default_guesses
-    from utils.fitting import compute_confidence_intervals, compute_lag_time
+    from utils.fitting import compute_fit_statistics
     from scipy.optimize import curve_fit
-    from scipy.stats import t as t_dist
 
     for i, phase in enumerate(st.session_state.get("phases", [])):
         if "id" not in phase:
@@ -573,48 +554,32 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                             popt, pcov = curve_fit(model_func, time_vals, y_data, p0=initial_guesses_list, bounds=(lower_bounds, upper_bounds))
                         else:
                             popt, pcov = curve_fit(model_func, time_vals, y_data, p0=initial_guesses_list)
-                        y_pred = model_func(time_vals, *popt)
-                        
-                        # Calculate residuals and quality metrics
-                        residuals = y_data - y_pred
-                        if len(y_data) - len(popt) <= 0:
+                        stats = compute_fit_statistics(
+                            time_vals, y_data, popt, pcov, model_func, params_list
+                        )
+                        if stats is None:
                             st.error(
                                 f"Not enough data points ({len(y_data)}) to fit {len(popt)} parameters "
                                 f"in this interval. Widen the time window or choose a simpler model."
                             )
                             continue
-                        residual_variance = np.var(residuals, ddof=len(popt))
-                        RSS = np.sum(residuals**2)
-                        TSS = np.sum((y_data - np.mean(y_data))**2)
-                        R_squared = 1 - (RSS / TSS)
+
+                        y_pred = stats["y_pred"]
+                        perr = stats["param_errors"]
+                        t_statistic = stats["t_statistic"]
+                        p_values = stats["p_values"]
+                        AIC = stats["AIC"]
+                        R_squared = stats["R_squared"]
+                        residual_variance = stats["residual_variance"]
+                        variance_ratio = stats["variance_ratio"]
+                        lower_bound_ci = stats["lower_bound"]
+                        upper_bound_ci = stats["upper_bound"]
+
                         st.write(f"Goodness of fit: R² = {R_squared:.4f}")
                         st.write(f"Residual variance: {residual_variance:.8f}")
 
-                        # Calculate AIC
-                        AIC = 2*len(popt) + len(y_data)*np.log(RSS/len(y_data))
-
-                        # Calculate confidence intervals
-                        dof = len(y_data) - len(popt)
-                        lower_bound_ci, upper_bound_ci = compute_confidence_intervals(time_vals, popt, pcov, 0.05, dof, residual_variance, model_func)
-
-                        # More realistic p-value calculation
-                        perr = np.sqrt(np.diag(pcov))
-                        t_statistic = popt / perr
-
-                        # Use residual variance relative to data variance as a better quality check
-                        data_variance = np.var(y_data)
-                        variance_ratio = residual_variance / data_variance
-                        if variance_ratio > 0.2 or R_squared < 0.90:  # Poor fit conditions
+                        if stats["poor_fit"]:
                             st.warning(f"⚠️ Model fit quality is questionable (R² = {R_squared:.4f}, Variance ratio = {variance_ratio:.4f})")
-                            # Adjust p-values to reflect poor fit quality
-                            p_values = [0.5 for _ in popt]  # Assign a high p-value for poor fits
-                        else:
-                            # For good fits, calculate normal p-values
-                            raw_p_values = 2 * (1 - t_dist.cdf(np.abs(t_statistic), df=dof))
-                            p_values = raw_p_values  # Use actual p-values for good fits
-
-                        # Add a more prominent warning and clearly show revised p-values
-                        if variance_ratio > 0.2 or R_squared < 0.90:  
                             st.error(f"""
                             ⚠️ WARNING: THIS MODEL DOES NOT FIT THE DATA WELL
                             - R² = {R_squared:.4f} (should be > 0.90)
@@ -637,20 +602,11 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                             "p_values":p_values
                         }
 
-                        current_model_name = phase.get("model", "Unknown Model")
-                        if current_model_name in ["Baranyi Growth", "Lag-Exponential-Saturation Growth"]:
-                            model_param_names = MODEL_PARAMS.get(current_model_name, [])
-                            if "q0" in model_param_names and "mu" in model_param_names:
-                                q0_idx = model_param_names.index("q0")
-                                mu_idx = model_param_names.index("mu")
-                                lag_time, lag_time_std_err = compute_lag_time(
-                                    q0=popt[q0_idx],
-                                    mu=popt[mu_idx],
-                                    q0_std_err=perr[q0_idx],
-                                    mu_std_err=perr[mu_idx]
-                                )
-                                phase["fit_results"]["lag_time"] = lag_time
-                                phase["fit_results"]["lag_time_std_err"] = lag_time_std_err
+                        lag_time = stats["lag_time"]
+                        lag_time_std_err = stats["lag_time_std_err"]
+                        if lag_time is not None:
+                            phase["fit_results"]["lag_time"] = lag_time
+                            phase["fit_results"]["lag_time_std_err"] = lag_time_std_err
                         phase.setdefault("phase", i+1)
                         phase["phase_time"]=time_vals
                         phase["fit"]=y_pred
@@ -688,15 +644,7 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                             "Variance Ratio": [variance_ratio for _ in popt]  # Add variance ratio for context
                         })
 
-                        if model_name in ["Baranyi Growth", "Lag-Exponential-Saturation Growth"] and "q0" in param_names and "mu" in param_names:
-                            q0_idx = param_names.index("q0")
-                            mu_idx = param_names.index("mu")
-                            lag_time, lag_time_std_err = compute_lag_time(
-                                q0=popt[q0_idx],
-                                mu=popt[mu_idx],
-                                q0_std_err=perr[q0_idx],
-                                mu_std_err=perr[mu_idx]
-                            )
+                        if lag_time is not None:
                             lag_row = pd.DataFrame([{
                                 "Parameter": f"lag_time {PARAMETER_UNITS.get('lag_time', '[time]')}",
                                 "Estimate": format_scientific(lag_time) if lag_time is not None else "N/A",
@@ -714,6 +662,56 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                         st.error(f"Error fitting model for Fit {i+1}: {e_fit}")
             except Exception as e_manual:
                 st.error(f"Error in manual fitting for Fit {i+1}: {e_manual}")
+
+def build_results_table(fitted_phases):
+    """
+    Flatten every fitted phase into one tidy table: a row per parameter per fit,
+    plus a lag_time row where applicable. Suitable for CSV export/reporting.
+    """
+    rows = []
+    for phase in fitted_phases:
+        fit_results = phase.get("fit_results") or {}
+        model_name = phase.get("model", "Unknown")
+        interval = phase.get("time_interval", {}) or {}
+        param_names = MODEL_PARAMS.get(model_name) or phase.get("custom_params") or []
+        estimates = fit_results.get("parameters", [])
+        errors = fit_results.get("param_errors", [])
+        t_stats = fit_results.get("t_statistic", [])
+        p_vals = fit_results.get("p_values", [])
+
+        for idx, estimate in enumerate(estimates):
+            name = param_names[idx] if idx < len(param_names) else f"Param {idx+1}"
+            rows.append({
+                "Fit": phase.get("phase", ""),
+                "Model": model_name,
+                "Start Time": interval.get("start"),
+                "End Time": interval.get("end"),
+                "Parameter": name,
+                "Unit": PARAMETER_UNITS.get(name, ""),
+                "Estimate": estimate,
+                "Std. Error": errors[idx] if idx < len(errors) else None,
+                "t-Statistic": t_stats[idx] if idx < len(t_stats) else None,
+                "p-Value": p_vals[idx] if idx < len(p_vals) else None,
+                "AIC": fit_results.get("AIC"),
+            })
+
+        if fit_results.get("lag_time") is not None:
+            rows.append({
+                "Fit": phase.get("phase", ""),
+                "Model": model_name,
+                "Start Time": interval.get("start"),
+                "End Time": interval.get("end"),
+                "Parameter": "lag_time",
+                "Unit": PARAMETER_UNITS.get("lag_time", "[time]"),
+                "Estimate": fit_results.get("lag_time"),
+                "Std. Error": fit_results.get("lag_time_std_err"),
+                "t-Statistic": None,
+                "p-Value": None,
+                "AIC": fit_results.get("AIC"),
+            })
+
+    return pd.DataFrame(rows)
+
 
 def format_scientific(value, precision=6):
     """
