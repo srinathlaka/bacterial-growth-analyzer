@@ -151,8 +151,8 @@ def plot_confidence_intervals(df, lower_bound, upper_bound, y_pred, std_dev, fit
         x=np.concatenate([df['Time'], df['Time'][::-1]]),
         y=np.concatenate([lower_bound, upper_bound[::-1]]),
         fill='toself',
-        fillcolor='rgba(173,216,230,0.4)',
-        line=dict(color='rgba(255,255,255,0)'),
+        fillcolor='rgba(65,105,225,0.35)',
+        line=dict(color='rgba(65,105,225,0.8)', width=1),
         hoverinfo="skip",
         showlegend=True,
         name='95% Confidence Interval'

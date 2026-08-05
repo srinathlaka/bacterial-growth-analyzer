@@ -68,10 +68,20 @@ def adjust_dataframe_layout(df, rows, columns):
     return df
 
 
+def _row_letters(i):
+    """Excel-style row label: 0->A, 25->Z, 26->AA, 27->AB, ..."""
+    s = ""
+    n = i + 1
+    while n > 0:
+        n, r = divmod(n - 1, 26)
+        s = chr(ord('A') + r) + s
+    return s
+
+
 def generate_labels(rows, cols):
     labels = []
     for i in range(rows):
-        row_letter = chr(ord('A') + i)  # e.g. 'A' if i=0, 'B' if i=1...
+        row_letter = _row_letters(i)  # A..Z, then AA, AB, ... for row 27+
         for j in range(cols):
             label = f"{row_letter}{j+1}"
             labels.append(label)
@@ -232,7 +242,17 @@ def create_custom_model(custom_expr, param_names):
         params=sp.symbols(param_names)
         expr=sp.sympify(custom_expr)
         func=sp.lambdify([t]+list(params), expr, 'numpy')
-        return func
+
+        def model(t_val, *args):
+            # If the expression has no 't' (e.g. a constant), lambdify returns a
+            # scalar. Broadcast it to the shape of t_val so curve_fit gets an
+            # array of the expected length instead of a shape-mismatch error.
+            result=np.asarray(func(t_val, *args))
+            if result.shape!=np.shape(t_val):
+                result=np.broadcast_to(result, np.shape(t_val))
+            return result
+
+        return model
     except Exception as e:
         st.error(f"Error parsing custom model expression: {e}")
         return None

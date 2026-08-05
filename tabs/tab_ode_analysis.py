@@ -234,7 +234,6 @@ def display_tab_ode_analysis():
 
                                 from scipy.stats import t as t_dist
                                 t_stats=fitted_params/std_errors
-                                st.write(dof)
 
                                 pvals=2*(1-t_dist.cdf(np.abs(t_stats), df=dof))
 

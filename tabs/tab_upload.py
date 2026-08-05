@@ -226,6 +226,6 @@ def _display_example_and_images():
             default_image = Image.open(default_layout_image_path)
             max_width, max_height = 500, 500
             default_image.thumbnail((max_width, max_height))
-            st.image(default_image, caption="Default Plate Reader Layout", use_container_width=False)
+            st.image(default_image, caption="Default Plate Reader Layout")
         else:
             st.info("⚠️ No default layout image available.")

@@ -183,7 +183,7 @@ def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
                 st.error("Missing required fields: time_interval, model, initial_guesses.")
                 continue
 
-            phase_data = operated_data[(operated_data["Time"]>=start) & (operated_data["Time"]<=end)][["Time"]+wells]
+            phase_data = operated_data[(operated_data["Time"]>=start) & (operated_data["Time"]<=end)][["Time"]+wells].copy()
             phase_data = phase_data.dropna(subset=wells)
             if phase_data.empty:
                 st.warning(f"No data points in interval {start} to {end}.")
@@ -220,6 +220,12 @@ def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
 
             y_pred = model_func(time_vals, *popt)
             residuals = y_data - y_pred
+            if len(y_data) - len(popt) <= 0:
+                st.error(
+                    f"Not enough data points ({len(y_data)}) to fit {len(popt)} parameters "
+                    f"in interval {start}-{end}. Widen the time window or choose a simpler model."
+                )
+                continue
             residual_variance = np.var(residuals, ddof=len(popt))
             dof = len(y_data) - len(popt)
             lower_bound_ci, upper_bound_ci = compute_confidence_intervals(time_vals, popt, pcov, 0.05, dof, residual_variance, model_func)
@@ -243,7 +249,6 @@ def _handle_automatic_fits(uploaded_json_fit, operated_data, selected_wells):
             else:
                 # For good fits, calculate normal p-values
                 raw_p_values = 2 * (1 - t_dist.cdf(np.abs(t_statistic), df=dof))
-                st.write(dof)
                 p_values = raw_p_values  # Use actual p-values for good fits
 
             phase_dict = {
@@ -353,8 +358,8 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                     st.success(f"Deleted Fit {i+1}")
                     return
 
-                phase_data = operated_data[(operated_data["Time"]>=float(fit_start)) & 
-                                           (operated_data["Time"]<=float(fit_end))]
+                phase_data = operated_data[(operated_data["Time"]>=float(fit_start)) &
+                                           (operated_data["Time"]<=float(fit_end))].copy()
                 if phase_data.empty:
                     st.warning("No data points in this interval.")
                     continue
@@ -572,6 +577,12 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                         
                         # Calculate residuals and quality metrics
                         residuals = y_data - y_pred
+                        if len(y_data) - len(popt) <= 0:
+                            st.error(
+                                f"Not enough data points ({len(y_data)}) to fit {len(popt)} parameters "
+                                f"in this interval. Widen the time window or choose a simpler model."
+                            )
+                            continue
                         residual_variance = np.var(residuals, ddof=len(popt))
                         RSS = np.sum(residuals**2)
                         TSS = np.sum((y_data - np.mean(y_data))**2)
@@ -600,7 +611,6 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                         else:
                             # For good fits, calculate normal p-values
                             raw_p_values = 2 * (1 - t_dist.cdf(np.abs(t_statistic), df=dof))
-                            st.write(dof)
                             p_values = raw_p_values  # Use actual p-values for good fits
 
                         # Add a more prominent warning and clearly show revised p-values
@@ -624,7 +634,7 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                             "param_errors":perr,
                             "AIC":AIC,
                             "t_statistic":t_statistic,
-                            "p-Values":p_values
+                            "p_values":p_values
                         }
 
                         current_model_name = phase.get("model", "Unknown Model")

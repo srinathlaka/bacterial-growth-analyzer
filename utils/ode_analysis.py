@@ -76,7 +76,10 @@ def compute_ode_ci_for_X(ode_system_func, param_values, param_cov, y0, t_eval, a
         std_X[i]=np.sqrt(max(var_i,0))
 
     from scipy.stats import t as t_dist
-    crit_val=t_dist.ppf(1-alpha/2, df=np.inf)
+    # Finite degrees of freedom (data points minus fitted parameters) instead of
+    # the normal approximation (df=inf), which understates the interval for small N.
+    dof=max(n_time-n_params, 1)
+    crit_val=t_dist.ppf(1-alpha/2, df=dof)
     CI_lower=nominal_X - crit_val*std_X
     CI_upper=nominal_X + crit_val*std_X
     return {

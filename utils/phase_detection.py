@@ -59,6 +59,12 @@ def detect_phases(
             phases.append((time[start_idx], time[-1]))
 
     elif method=="slope_based":
+        if len(time)<=slope_window:
+            st.error(
+                f"Not enough data points ({len(time)}) for a slope window of {slope_window}. "
+                f"Reduce the slope window or use more data."
+            )
+            return [],[],{}
         slopes=[]
         for i in range(len(time)-slope_window):
             y_segment=od_values[i:i+slope_window]

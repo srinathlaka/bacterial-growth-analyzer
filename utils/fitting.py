@@ -17,7 +17,7 @@ def compute_confidence_intervals(time, params, covariance, alpha, dof, residual_
         def func(p):
             return model_func(np.array([time[i]]),*p)
         gradient=approx_fprime(params, func, epsilon)
-        conf_interval[i]=np.sqrt(np.dot(gradient, np.dot(covariance, gradient.T))+residual_variance)
+        conf_interval[i]=np.sqrt(np.dot(gradient, np.dot(covariance, gradient.T)))
 
     lower_bound=fitted_values - t_critical*conf_interval
     upper_bound=fitted_values + t_critical*conf_interval
