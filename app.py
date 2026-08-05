@@ -1,5 +1,9 @@
 import streamlit as st
 import os
+
+# Bump this on each release; shown in the footer.
+LAST_UPDATED = "2026-08-05"
+
 from tabs import (
     tab_upload,
     tab_background,
@@ -291,6 +295,14 @@ def main():
                 if st.button("▶️ Continue to Fitting", key="continue_to_fitting"):
                     st.session_state["current_tab"] = "Fitting"
                     st.rerun()
+
+    # Footer
+    st.markdown("<hr style='margin-top:40px; margin-bottom:10px;'>", unsafe_allow_html=True)
+    st.markdown(
+        f"<div style='text-align:center; color:#6c757d; font-size:0.85em; padding-bottom:10px;'>"
+        f"Last updated: {LAST_UPDATED}</div>",
+        unsafe_allow_html=True
+    )
 
 if __name__ == "__main__":
     main()
