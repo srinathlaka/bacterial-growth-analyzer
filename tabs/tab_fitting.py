@@ -25,8 +25,13 @@ from utils.models import (
 def display_tab_fitting():
     st.header("Growth Model Fitting")
     
-    # Check if background subtraction was skipped
-    if st.session_state.get("bg_subtraction_skipped", False):
+    # Check if background subtraction was skipped. Trust the data over the flag:
+    # if subtracted data exists, the flag is stale and the warning would be wrong.
+    has_bg_subtracted_data = any(
+        key.endswith("_bg_subtracted")
+        for key in st.session_state.get("groups_data", {})
+    )
+    if st.session_state.get("bg_subtraction_skipped", False) and not has_bg_subtracted_data:
         st.warning("""
         ⚠️ **Background subtraction was skipped**
         

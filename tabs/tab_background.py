@@ -308,14 +308,24 @@ def display_tab_background():
                                     st.error("Background subtraction failed. No data was returned.")
                 else:
                     st.info("Please select blank wells for background subtraction.")
+        elif f"Group_{group_num}_bg_subtracted" in st.session_state.get("groups_data", {}):
+            # The toggle resets to its default when the tab is revisited, so this
+            # branch is also reached on a plain re-render - not only when the user
+            # deliberately skips. Never rebuild raw data over a completed
+            # subtraction: that would silently replace the corrected values with
+            # uncorrected ones and flip bg_subtraction_skipped back to True.
+            st.info(
+                f"Existing background-subtracted data for Group {group_num} is preserved. "
+                f"Switch the toggle on to redo the subtraction."
+            )
         else:
             # User chose to skip background subtraction - automatically prepare data
             st.info("Background subtraction skipped. Preparing raw data for fitting...")
             st.session_state["bg_subtraction_skipped"] = True
-            
+
             if num_groups > 1:
                 st.session_state["multi_group_bg_skipped"] = True
-            
+
             # Ensure we have raw data and it's clipped to zero
             sample_wells = st.session_state.get(f"group_{group_num}_sample_wells", [])
             if sample_wells:
