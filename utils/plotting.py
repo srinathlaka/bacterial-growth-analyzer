@@ -11,7 +11,8 @@ import uuid
 # and whichever template happens to be the plotly default.
 
 TEXT_COLOR = "#262730"
-GRID_COLOR = "#d9d9d9"
+GRID_COLOR = "#ececec"
+AXIS_LINE_COLOR = "#bfbfbf"
 
 # Font sizes for every chart - adjust here to resize text app-wide.
 TICK_SIZE = 18
@@ -34,19 +35,23 @@ def _bold_font(size):
         return dict(size=size, family="Arial Black, Arial, sans-serif", color=TEXT_COLOR)
 
 
-def _axis_style():
-    """White background with visible gridlines, bold numbers and bold title."""
+def _axis_style(showgrid):
+    """Bold numbers and title, with a faint grid only where it helps.
+
+    Horizontal lines make values easier to read off; vertical ones mostly add
+    clutter, so the x axis gets none.
+    """
     return dict(
         tickfont=_bold_font(TICK_SIZE),
         title=dict(font=_bold_font(AXIS_TITLE_SIZE)),
-        showgrid=True,
+        showgrid=showgrid,
         gridcolor=GRID_COLOR,
         gridwidth=1,
         zeroline=False,
         showline=True,
-        linecolor=GRID_COLOR,
+        linecolor=AXIS_LINE_COLOR,
         ticks="outside",
-        tickcolor=GRID_COLOR,
+        tickcolor=AXIS_LINE_COLOR,
     )
 
 
@@ -63,16 +68,31 @@ pio.templates["growth"] = go.layout.Template(
         legend=dict(
             font=_bold_font(LEGEND_SIZE),
             orientation="h",
-            yanchor="top",
-            y=-0.18,
+            # Anchored to the bottom of the figure container, not to the plot
+            # area: a fraction of plot height shrinks on a wide, short chart
+            # and the legend then lands on top of the x-axis title.
+            yref="container",
+            yanchor="bottom",
+            y=0,
             xanchor="center",
             x=0.5,
         ),
-        xaxis=_axis_style(),
-        yaxis=_axis_style(),
+        margin=dict(b=90),
+        xaxis=_axis_style(showgrid=False),
+        yaxis=_axis_style(showgrid=True),
     )
 )
 PLOT_TEMPLATE = "plotly_white+growth"
+
+# Streamlit's frontend overrides background colours coming from a template, but
+# not ones set directly on the layout, so the figure renders (and exports) with
+# plotly's grey default unless these are repeated here. Every chart applies this
+# with fig.update_layout(..., **PLOT_LAYOUT).
+PLOT_LAYOUT = dict(
+    template=PLOT_TEMPLATE,
+    plot_bgcolor="white",
+    paper_bgcolor="white",
+)
 
 # Figures created without an explicit template (in the tab modules) pick this
 # up too, so no chart falls back to plotly's grey default.
@@ -154,7 +174,7 @@ def plot_all_ode_fits_summary(ode_fits, operated_data, selected_operated_wells):
         xaxis_title="Time",
         yaxis_title="Value",
         legend_title="Legend",
-        template=PLOT_TEMPLATE
+        **PLOT_LAYOUT
     )
     return fig
 
@@ -201,7 +221,7 @@ def plot_avg_sd_operated(data, selected_wells):
         title="Average and Standard Deviation of Operated Data",
         xaxis_title="Time",
         yaxis_title="OD",
-        template=PLOT_TEMPLATE
+        **PLOT_LAYOUT
     )
     unique_key=f"plot_avg_sd_operated_{uuid.uuid4().hex}"
     st.plotly_chart(fig, theme=None, config=CHART_CONFIG,use_container_width=True,key=unique_key)
@@ -234,7 +254,7 @@ def plot_selected_wells(df, wells, context="raw"):
         title='Selected Wells',
         xaxis_title='Time',
         yaxis_title='OD',
-        template=PLOT_TEMPLATE
+        **PLOT_LAYOUT
     )
     
     st.plotly_chart(fig, theme=None, config=CHART_CONFIG, use_container_width=True, key=plot_key)
@@ -281,7 +301,7 @@ def plot_confidence_intervals(df, lower_bound, upper_bound, y_pred, std_dev, fit
         xaxis_title='Time',
         yaxis_title='OD',
         legend_title='Legend',
-        template=PLOT_TEMPLATE
+        **PLOT_LAYOUT
     )
     # Generate a stable key
     if fit_id is None:
@@ -301,7 +321,7 @@ def plot_fitted_curves(df, time, observed, fitted, model_name, fit_id=None):
         xaxis_title='Time',
         yaxis_title='OD',
         legend_title='Legend',
-        template=PLOT_TEMPLATE
+        **PLOT_LAYOUT
     )
     # Generate a stable key based on the model name and a unique ID
     if fit_id is None:
@@ -380,7 +400,7 @@ def plot_phase_fit_with_ci(phase_fits, operated_data, selected_operated_wells):
         xaxis_title='Time',
         yaxis_title='OD',
         legend_title='Legend',
-        template=PLOT_TEMPLATE
+        **PLOT_LAYOUT
     )
     
     return fig
@@ -401,7 +421,7 @@ def display_single_well_preview(df, well_name):
             title=f'Preview of {well_name}',
             xaxis_title='Time',
             yaxis_title='OD',
-            template=PLOT_TEMPLATE,
+            **PLOT_LAYOUT,
             width=400,
             height=300,
             showlegend=False
@@ -454,7 +474,7 @@ def plot_avg_sd_bg_subtracted(data, wells, group_num, context="default"):
         title=f'Background-Subtracted Data (Group {group_num})',
         xaxis_title='Time',
         yaxis_title='Optical Density (OD)',
-        template=PLOT_TEMPLATE
+        **PLOT_LAYOUT
     )
 
     # Create a unique key that doesn't depend on specific well names
@@ -488,7 +508,7 @@ def plot_raw_vs_corrected(df, group_df, well_name, group_num):
         title=f'Raw vs. Background-Corrected Data - {well_name} (Group {group_num})',
         xaxis_title='Time',
         yaxis_title='OD',
-        template=PLOT_TEMPLATE
+        **PLOT_LAYOUT
     )
     return fig
 
@@ -530,7 +550,7 @@ def plot_average_blank(df, blank_wells):
         title='Blank Wells Data',
         xaxis_title='Time',
         yaxis_title='OD',
-        template=PLOT_TEMPLATE
+        **PLOT_LAYOUT
     )
     
     st.plotly_chart(fig, theme=None, config=CHART_CONFIG, use_container_width=True, key=plot_key)
@@ -605,7 +625,7 @@ def plot_blank_fit(df, avg_blank, y_pred, lower_bound, upper_bound, group_num):
         title=f'Blank Wells Fitting - Group {group_num}',
         xaxis_title='Time',
         yaxis_title='OD',
-        template=PLOT_TEMPLATE,
+        **PLOT_LAYOUT,
         hovermode='closest'
     )
     

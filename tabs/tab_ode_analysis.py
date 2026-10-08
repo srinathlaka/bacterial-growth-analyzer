@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy.integrate import solve_ivp
 from scipy.optimize import minimize
-from utils.plotting import CHART_CONFIG, PLOT_TEMPLATE, plot_avg_sd_operated
+from utils.plotting import CHART_CONFIG, PLOT_LAYOUT, plot_avg_sd_operated
 from utils.ode_analysis import parse_ode, compute_ode_ci_for_X
 from utils.plotting import plot_all_ode_fits_summary, plot_selected_wells
 from utils.file_io import generate_labels
@@ -317,7 +317,7 @@ def display_tab_ode_analysis():
                                         title=f"ODE Fit (Fit {i+1})",
                                         xaxis_title="Time",
                                         yaxis_title="Value",
-                                        template=PLOT_TEMPLATE
+                                        **PLOT_LAYOUT
                                     )
                                     st.plotly_chart(fig, theme=None, config=CHART_CONFIG, use_container_width=True)
                     else:
@@ -387,7 +387,7 @@ def display_tab_ode_analysis():
                                     title=f"Old ODE Fit (Fit {i+1})",
                                     xaxis_title="Time",
                                     yaxis_title="Value",
-                                    template=PLOT_TEMPLATE
+                                    **PLOT_LAYOUT
                                 )
                                 st.plotly_chart(fig, theme=None, config=CHART_CONFIG, use_container_width=True)
                             else:

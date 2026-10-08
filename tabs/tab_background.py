@@ -14,7 +14,7 @@ from utils.file_io import generate_labels, create_button_layout, read_data
 from utils.background import perform_background_subtraction
 from utils.plotting import (
     CHART_CONFIG,
-    PLOT_TEMPLATE,
+    PLOT_LAYOUT,
     display_single_well_preview,
     plot_selected_wells,
     plot_avg_sd_bg_subtracted,
@@ -652,7 +652,7 @@ def _use_average_blank(df, blank_wells, group_num):
         title=f'Average of Blank Wells - Group {group_num} (No Fitting)',
         xaxis_title='Time',
         yaxis_title='OD',
-        template=PLOT_TEMPLATE
+        **PLOT_LAYOUT
     )
     st.plotly_chart(fig, theme=None, config=CHART_CONFIG, use_container_width=True)
     st.success("Using simple average of blank wells (no model fitting).")
