@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy.integrate import solve_ivp
 from scipy.optimize import minimize
-from utils.plotting import plot_avg_sd_operated
+from utils.plotting import CHART_CONFIG, PLOT_TEMPLATE, plot_avg_sd_operated
 from utils.ode_analysis import parse_ode, compute_ode_ci_for_X
 from utils.plotting import plot_all_ode_fits_summary, plot_selected_wells
 from utils.file_io import generate_labels
@@ -317,9 +317,9 @@ def display_tab_ode_analysis():
                                         title=f"ODE Fit (Fit {i+1})",
                                         xaxis_title="Time",
                                         yaxis_title="Value",
-                                        template="plotly_white"
+                                        template=PLOT_TEMPLATE
                                     )
-                                    st.plotly_chart(fig, use_container_width=True)
+                                    st.plotly_chart(fig, theme=None, config=CHART_CONFIG, use_container_width=True)
                     else:
                         # Re-display old results if exist
                         old_res=fit.get("fit_results")
@@ -387,9 +387,9 @@ def display_tab_ode_analysis():
                                     title=f"Old ODE Fit (Fit {i+1})",
                                     xaxis_title="Time",
                                     yaxis_title="Value",
-                                    template="plotly_white"
+                                    template=PLOT_TEMPLATE
                                 )
-                                st.plotly_chart(fig, use_container_width=True)
+                                st.plotly_chart(fig, theme=None, config=CHART_CONFIG, use_container_width=True)
                             else:
                                 st.info("Old results exist but are incomplete for plotting.")
                         else:
@@ -410,6 +410,6 @@ def display_tab_ode_analysis():
         )
         import plotly.graph_objects as go
         if isinstance(fig_summary, go.Figure):
-            st.plotly_chart(fig_summary, use_container_width=True)
+            st.plotly_chart(fig_summary, theme=None, config=CHART_CONFIG, use_container_width=True)
         else:
             st.error("Summary plot did not return a valid Plotly figure.")

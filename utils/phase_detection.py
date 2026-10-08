@@ -3,6 +3,8 @@ import numpy as np
 import plotly.graph_objects as go
 from scipy.signal import savgol_filter
 
+from utils.plotting import CHART_CONFIG, PLOT_TEMPLATE
+
 def detect_phases(
     time,
     od_values,
@@ -154,6 +156,6 @@ def plot_detected_phases(time, od_values, phases, derivative=None, slopes=None, 
         title="Automatic Phase Detection",
         xaxis_title="Time",
         yaxis_title="OD",
-        template="plotly_white"
+        template=PLOT_TEMPLATE
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, theme=None, config=CHART_CONFIG, use_container_width=True)

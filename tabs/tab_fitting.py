@@ -7,6 +7,7 @@ from scipy.optimize import curve_fit
 from scipy.stats import t as t_dist
 
 from utils.plotting import (
+    CHART_CONFIG,
     plot_avg_sd_operated,
     plot_selected_wells,
     plot_confidence_intervals,
@@ -57,6 +58,21 @@ def display_tab_fitting():
     if operated_data is None or not selected_operated_wells:
         st.warning("Operated data or selected wells are missing. Check previous tabs.")
         return
+
+    # Keep only wells the data actually has. The selection can change after the
+    # table was built, which would otherwise raise a bare KeyError here.
+    missing_wells = [w for w in selected_operated_wells if w not in operated_data.columns]
+    if missing_wells:
+        st.warning(
+            f"⚠️ These selected wells are not in the prepared data: {', '.join(missing_wells)}. "
+            f"They were selected after the data was prepared. Return to the Background tab "
+            f"to rebuild it, or continue with the wells that are present."
+        )
+        selected_operated_wells = [w for w in selected_operated_wells if w in operated_data.columns]
+        if not selected_operated_wells:
+            st.error("None of the selected wells are present in the prepared data.")
+            return
+        st.session_state["selected_operated_wells"] = selected_operated_wells
 
     if "Average" not in operated_data.columns:
         operated_data["Average"] = operated_data[selected_operated_wells].mean(axis=1)
@@ -133,7 +149,7 @@ def display_tab_fitting():
             fig_summary = plot_phase_fit_with_ci(fitted_phases, operated_data, selected_operated_wells)
             
             # Use the stable key for the plot
-            st.plotly_chart(fig_summary, use_container_width=True, key=summary_key)
+            st.plotly_chart(fig_summary, theme=None, config=CHART_CONFIG, use_container_width=True, key=summary_key)
 
             # Tidy results table + CSV export
             st.markdown("#### Fitted Parameters (All Fits)")
@@ -556,9 +572,14 @@ def _display_existing_phases(operated_data, selected_operated_wells):
                                     default_value = default_guesses[phase["model"]][param_index]
                             except Exception:
                                 default_value = 1.0
-                            
-                        guess = st.number_input(f"Initial guess for {param}", 
-                                               value=float(default_value), 
+
+                        # Backstop: number_input rejects inf/nan outright, which
+                        # would abort the whole fit panel with a cryptic error.
+                        if not np.isfinite(default_value):
+                            default_value = 1.0
+
+                        guess = st.number_input(f"Initial guess for {param}",
+                                               value=float(default_value),
                                                step=0.01, 
                                                format="%.5f", 
                                                key=f"{param}_{i}_guess")

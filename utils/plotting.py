@@ -2,7 +2,96 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+import plotly.io as pio
 import uuid
+
+# Shared chart styling for every chart in the app, applied via PLOT_TEMPLATE.
+# The template sets its own background and gridlines rather than relying on
+# plotly_white underneath, so the result is the same whatever plotly version
+# and whichever template happens to be the plotly default.
+
+TEXT_COLOR = "#262730"
+GRID_COLOR = "#d9d9d9"
+
+# Font sizes for every chart - adjust here to resize text app-wide.
+TICK_SIZE = 18
+AXIS_TITLE_SIZE = 20
+LEGEND_SIZE = 19
+TITLE_SIZE = 22
+
+
+def _bold_font(size):
+    """Bold font spec that works across plotly versions.
+
+    plotly >= 5.22 accepts an explicit font weight; older versions reject it,
+    so fall back to a heavy font family there. The colour is set explicitly so
+    the text stays dark on the white plot background whatever theme is active.
+    """
+    try:
+        go.layout.legend.Font(weight="bold")
+        return dict(size=size, weight="bold", color=TEXT_COLOR)
+    except Exception:
+        return dict(size=size, family="Arial Black, Arial, sans-serif", color=TEXT_COLOR)
+
+
+def _axis_style():
+    """White background with visible gridlines, bold numbers and bold title."""
+    return dict(
+        tickfont=_bold_font(TICK_SIZE),
+        title=dict(font=_bold_font(AXIS_TITLE_SIZE)),
+        showgrid=True,
+        gridcolor=GRID_COLOR,
+        gridwidth=1,
+        zeroline=False,
+        showline=True,
+        linecolor=GRID_COLOR,
+        ticks="outside",
+        tickcolor=GRID_COLOR,
+    )
+
+
+pio.templates["growth"] = go.layout.Template(
+    layout=dict(
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        font=dict(color=TEXT_COLOR),
+        title=dict(font=_bold_font(TITLE_SIZE)),
+        # Horizontal legend under the plot. A legend on the right eats roughly
+        # half the width, which wastes space when the figure goes into a
+        # document; underneath it costs only a little height. It sits below
+        # rather than above so it cannot collide with the chart title.
+        legend=dict(
+            font=_bold_font(LEGEND_SIZE),
+            orientation="h",
+            yanchor="top",
+            y=-0.18,
+            xanchor="center",
+            x=0.5,
+        ),
+        xaxis=_axis_style(),
+        yaxis=_axis_style(),
+    )
+)
+PLOT_TEMPLATE = "plotly_white+growth"
+
+# Figures created without an explicit template (in the tab modules) pick this
+# up too, so no chart falls back to plotly's grey default.
+pio.templates.default = PLOT_TEMPLATE
+
+# Export settings for the camera button on every chart. The defaults save at
+# screen resolution, which is too coarse for a figure in a paper; a fixed size
+# with scale=4 gives a ~5600x3200 px image regardless of the browser window.
+# Switch "format" to "svg" if a vector file is wanted instead.
+CHART_CONFIG = {
+    "toImageButtonOptions": {
+        "format": "png",
+        "filename": "growth_plot",
+        "width": 1400,
+        "height": 800,
+        "scale": 4,
+    },
+    "displaylogo": False,
+}
 
 def plot_all_ode_fits_summary(ode_fits, operated_data, selected_operated_wells):
     """
@@ -65,7 +154,7 @@ def plot_all_ode_fits_summary(ode_fits, operated_data, selected_operated_wells):
         xaxis_title="Time",
         yaxis_title="Value",
         legend_title="Legend",
-        template="plotly_white"
+        template=PLOT_TEMPLATE
     )
     return fig
 
@@ -74,8 +163,14 @@ def plot_avg_sd_operated(data, selected_wells):
     Plot average & std of the 'operated_data' DataFrame. 
     Lines ~1150 from your code.
     """
-    avg=data["Average"]
-    sd=data[selected_wells].std(axis=1)
+    # Only use wells actually present: the stored table and the current
+    # selection can disagree if the selection changed after it was built.
+    valid_wells=[w for w in selected_wells if w in data.columns]
+    if not valid_wells:
+        st.warning("None of the selected wells are present in this data.")
+        return
+    avg=data["Average"] if "Average" in data.columns else data[valid_wells].mean(axis=1)
+    sd=data[valid_wells].std(axis=1)
     fig=go.Figure()
     fig.add_trace(go.Scatter(
         x=data["Time"],
@@ -106,10 +201,10 @@ def plot_avg_sd_operated(data, selected_wells):
         title="Average and Standard Deviation of Operated Data",
         xaxis_title="Time",
         yaxis_title="OD",
-        template='plotly_white'
+        template=PLOT_TEMPLATE
     )
     unique_key=f"plot_avg_sd_operated_{uuid.uuid4().hex}"
-    st.plotly_chart(fig,use_container_width=True,key=unique_key)
+    st.plotly_chart(fig, theme=None, config=CHART_CONFIG,use_container_width=True,key=unique_key)
 
 def plot_selected_wells(df, wells, context="raw"):
     """Plot selected wells."""
@@ -139,10 +234,10 @@ def plot_selected_wells(df, wells, context="raw"):
         title='Selected Wells',
         xaxis_title='Time',
         yaxis_title='OD',
-        template='plotly_white'
+        template=PLOT_TEMPLATE
     )
     
-    st.plotly_chart(fig, use_container_width=True, key=plot_key)
+    st.plotly_chart(fig, theme=None, config=CHART_CONFIG, use_container_width=True, key=plot_key)
 
 def plot_confidence_intervals(df, lower_bound, upper_bound, y_pred, std_dev, fit_id=None):
     """Plot confidence intervals & standard deviation for a fitted curve."""
@@ -186,14 +281,14 @@ def plot_confidence_intervals(df, lower_bound, upper_bound, y_pred, std_dev, fit
         xaxis_title='Time',
         yaxis_title='OD',
         legend_title='Legend',
-        template='plotly_white'
+        template=PLOT_TEMPLATE
     )
     # Generate a stable key
     if fit_id is None:
         fit_id = hash(str(lower_bound[0]) + str(upper_bound[0])) % 10000
         
     plot_key = f"confidence_intervals_plot_{fit_id}"
-    st.plotly_chart(fig, key=plot_key)
+    st.plotly_chart(fig, theme=None, config=CHART_CONFIG, key=plot_key)
 
 # Update the plot_fitted_curves function to use stable keys
 def plot_fitted_curves(df, time, observed, fitted, model_name, fit_id=None):
@@ -206,14 +301,14 @@ def plot_fitted_curves(df, time, observed, fitted, model_name, fit_id=None):
         xaxis_title='Time',
         yaxis_title='OD',
         legend_title='Legend',
-        template='plotly_white'
+        template=PLOT_TEMPLATE
     )
     # Generate a stable key based on the model name and a unique ID
     if fit_id is None:
         fit_id = hash(str(time[0]) + str(time[-1])) % 10000  # Create ID from time range
     
     plot_key = f"fitted_curve_{model_name}_{fit_id}"
-    st.plotly_chart(fig, key=plot_key)
+    st.plotly_chart(fig, theme=None, config=CHART_CONFIG, key=plot_key)
 
 def plot_phase_fit_with_ci(phase_fits, operated_data, selected_operated_wells):
     """
@@ -285,7 +380,7 @@ def plot_phase_fit_with_ci(phase_fits, operated_data, selected_operated_wells):
         xaxis_title='Time',
         yaxis_title='OD',
         legend_title='Legend',
-        template='plotly_white'
+        template=PLOT_TEMPLATE
     )
     
     return fig
@@ -306,12 +401,12 @@ def display_single_well_preview(df, well_name):
             title=f'Preview of {well_name}',
             xaxis_title='Time',
             yaxis_title='OD',
-            template='plotly_white',
+            template=PLOT_TEMPLATE,
             width=400,
             height=300,
             showlegend=False
         )
-        st.plotly_chart(fig, key=f"preview_{well_name}_{uuid.uuid4().hex}")
+        st.plotly_chart(fig, theme=None, config=CHART_CONFIG, key=f"preview_{well_name}_{uuid.uuid4().hex}")
     else:
         st.write("No well selected for preview.")
 
@@ -359,7 +454,7 @@ def plot_avg_sd_bg_subtracted(data, wells, group_num, context="default"):
         title=f'Background-Subtracted Data (Group {group_num})',
         xaxis_title='Time',
         yaxis_title='Optical Density (OD)',
-        template='plotly_white'
+        template=PLOT_TEMPLATE
     )
 
     # Create a unique key that doesn't depend on specific well names
@@ -368,7 +463,7 @@ def plot_avg_sd_bg_subtracted(data, wells, group_num, context="default"):
     plot_key = f"plot_avg_sd_group_{group_num}_{context}_{wells_hash}"
     
     st.session_state[f"plot_key_group_{group_num}_{context}"] = plot_key
-    st.plotly_chart(fig, key=plot_key)
+    st.plotly_chart(fig, theme=None, config=CHART_CONFIG, key=plot_key)
 
 def plot_raw_vs_corrected(df, group_df, well_name, group_num):
     """Compare raw and background-corrected data for a single well"""
@@ -393,7 +488,7 @@ def plot_raw_vs_corrected(df, group_df, well_name, group_num):
         title=f'Raw vs. Background-Corrected Data - {well_name} (Group {group_num})',
         xaxis_title='Time',
         yaxis_title='OD',
-        template='plotly_white'
+        template=PLOT_TEMPLATE
     )
     return fig
 
@@ -435,10 +530,10 @@ def plot_average_blank(df, blank_wells):
         title='Blank Wells Data',
         xaxis_title='Time',
         yaxis_title='OD',
-        template='plotly_white'
+        template=PLOT_TEMPLATE
     )
     
-    st.plotly_chart(fig, use_container_width=True, key=plot_key)
+    st.plotly_chart(fig, theme=None, config=CHART_CONFIG, use_container_width=True, key=plot_key)
 
 def plot_blank_fit(df, avg_blank, y_pred, lower_bound, upper_bound, group_num):
     """
@@ -510,7 +605,7 @@ def plot_blank_fit(df, avg_blank, y_pred, lower_bound, upper_bound, group_num):
         title=f'Blank Wells Fitting - Group {group_num}',
         xaxis_title='Time',
         yaxis_title='OD',
-        template='plotly_white',
+        template=PLOT_TEMPLATE,
         hovermode='closest'
     )
     

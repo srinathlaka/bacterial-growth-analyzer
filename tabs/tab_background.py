@@ -13,6 +13,8 @@ import os
 from utils.file_io import generate_labels, create_button_layout, read_data
 from utils.background import perform_background_subtraction
 from utils.plotting import (
+    CHART_CONFIG,
+    PLOT_TEMPLATE,
     display_single_well_preview,
     plot_selected_wells,
     plot_avg_sd_bg_subtracted,
@@ -22,6 +24,13 @@ from utils.plotting import (
 )
 from utils.models import polynomial_func, MODEL_PARAMS, power_law
 from utils.fitting import compute_confidence_intervals
+
+def _well_columns(df):
+    """Well columns of a stored group table, ignoring derived columns."""
+    if df is None:
+        return []
+    return [c for c in df.columns if c not in ("Time", "Average", "Std_Dev")]
+
 
 # Create a helper function to safely store state at the top of the file
 def _store_ui_state(key, value):
@@ -297,6 +306,11 @@ def display_tab_background():
                                 )
                                 st.session_state["groups_data"] = groups_data
                                 st.session_state["bg_subtraction_skipped"] = False
+                                # Mark that this group holds genuinely corrected
+                                # data. The skip path writes raw data under the
+                                # same key, so key presence alone cannot tell
+                                # the two apart.
+                                st.session_state[f"group_{group_num}_bg_done"] = True
                                 
                                 # Get the background-subtracted data from the updated groups_data
                                 bg_subtracted_data = groups_data.get(f"Group_{group_num}_bg_subtracted")
@@ -308,16 +322,28 @@ def display_tab_background():
                                     st.error("Background subtraction failed. No data was returned.")
                 else:
                     st.info("Please select blank wells for background subtraction.")
-        elif f"Group_{group_num}_bg_subtracted" in st.session_state.get("groups_data", {}):
-            # The toggle resets to its default when the tab is revisited, so this
-            # branch is also reached on a plain re-render - not only when the user
-            # deliberately skips. Never rebuild raw data over a completed
-            # subtraction: that would silently replace the corrected values with
-            # uncorrected ones and flip bg_subtraction_skipped back to True.
-            st.info(
-                f"Existing background-subtracted data for Group {group_num} is preserved. "
-                f"Switch the toggle on to redo the subtraction."
-            )
+        elif st.session_state.get(f"group_{group_num}_bg_done", False):
+            # Background subtraction really was run for this group. The toggle
+            # resets to its default when the tab is revisited, so this branch is
+            # also reached on a plain re-render - never rebuild raw data over
+            # corrected values here.
+            stored = st.session_state.get("groups_data", {}).get(f"Group_{group_num}_bg_subtracted")
+            subtracted_wells = _well_columns(stored)
+            current_wells = st.session_state.get(f"group_{group_num}_sample_wells", [])
+
+            if set(subtracted_wells) == set(current_wells):
+                st.info(
+                    f"Existing background-subtracted data for Group {group_num} is preserved. "
+                    f"Switch the toggle on to redo the subtraction."
+                )
+            else:
+                st.warning(
+                    f"⚠️ The sample well selection changed after background subtraction was run "
+                    f"for Group {group_num}.\n\n"
+                    f"- Subtracted: {', '.join(subtracted_wells) or 'none'}\n"
+                    f"- Selected now: {', '.join(current_wells) or 'none'}\n\n"
+                    f"Switch the toggle on and run the subtraction again so the two match."
+                )
         else:
             # User chose to skip background subtraction - automatically prepare data
             st.info("Background subtraction skipped. Preparing raw data for fitting...")
@@ -425,7 +451,7 @@ def display_tab_background():
                 
                 # Create plot with a stable key
                 fig = plot_raw_vs_corrected(group_df, bg_subtracted_data, selected_well, group_num)
-                st.plotly_chart(fig, use_container_width=True, 
+                st.plotly_chart(fig, theme=None, config=CHART_CONFIG, use_container_width=True, 
                             key=f"raw_vs_bg_{group_num}_{selected_well}")
     
     # Download button for background subtraction configuration
@@ -534,7 +560,7 @@ def _fit_power_law(df, blank_wells, group_num):
         )
         # Plot the fitted model
         fig = plot_blank_fit(df, avg_blank, y_pred, lower_bound, upper_bound, group_num)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, theme=None, config=CHART_CONFIG, use_container_width=True)
         # Display fit parameters
         st.success(f"Power Law Fit: y = {popt[0]:.4f} * x^{popt[1]:.4f} + {popt[2]:.4f}")
     except Exception:
@@ -590,7 +616,7 @@ def _fit_polynomial(df, blank_wells, group_num):
         
         # Plot the fitted model
         fig = plot_blank_fit(df, avg_blank, y_pred, lower_bound, upper_bound, group_num)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, theme=None, config=CHART_CONFIG, use_container_width=True)
         
         # Display fit parameters in a readable format
         param_str = " + ".join([f"{popt[i]:.4f} * x^{degree-i}" for i in range(degree+1)])
@@ -626,9 +652,9 @@ def _use_average_blank(df, blank_wells, group_num):
         title=f'Average of Blank Wells - Group {group_num} (No Fitting)',
         xaxis_title='Time',
         yaxis_title='OD',
-        template='plotly_white'
+        template=PLOT_TEMPLATE
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, theme=None, config=CHART_CONFIG, use_container_width=True)
     st.success("Using simple average of blank wells (no model fitting).")
 
 def _generate_bg_config_json(rows, columns, num_groups):

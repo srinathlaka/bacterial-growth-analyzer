@@ -39,37 +39,71 @@ def gompertz_growth(t, A, B, C):
     """
     return A * np.exp(-np.exp(B * (C - t)))
 
+# Helpers for the initial guesses below. Background-subtracted data is clipped
+# at zero, so a fit interval in the lag phase can be all zeros. Guessing from
+# those values directly gives log(0) = -inf for the growth rate and X0 = 0,
+# which makes the growth models identically zero and leaves curve_fit with
+# nothing to work from. These helpers use only the real (positive) measurements.
+
+def _positive_values(y_data):
+    """Finite values above zero, in their original order."""
+    y = np.asarray(y_data, dtype=float)
+    return y[np.isfinite(y) & (y > 0)]
+
+
+def _mu_guess(y_data, time_vals):
+    """Growth rate estimated from the first and last positive measurements."""
+    positives = _positive_values(y_data)
+    span = float(time_vals[-1]) - float(time_vals[0])
+    if len(positives) < 2 or span <= 0:
+        return 1.0
+    mu = np.log(positives[-1] / positives[0]) / span
+    return float(mu) if np.isfinite(mu) else 1.0
+
+
+def _x0_guess(y_data):
+    """Smallest positive measurement; zero would flatten the model to zero."""
+    positives = _positive_values(y_data)
+    return float(positives.min()) if len(positives) else 0.01
+
+
+def _scaled_max(y_data, factor):
+    """Carrying-capacity style guess, kept positive for all-zero intervals."""
+    positives = _positive_values(y_data)
+    return float(factor * positives.max()) if len(positives) else 1.0
+
+
 # Update these lambdas to return the CORRECT number of parameters for each function:
 default_guesses = {
     "Exponential Growth": lambda y_data, time_vals: [
-        np.log(y_data[-1] / max(y_data[0], 0.01)) / (time_vals[-1] - time_vals[0]),  # mu (growth rate)
-        np.min(y_data)  # X0 (initial population)
+        _mu_guess(y_data, time_vals),  # mu (growth rate)
+        _x0_guess(y_data)  # X0 (initial population)
     ],
     "Logistic Growth": lambda y_data, time_vals: [
-        np.log(y_data[-1] / max(y_data[0], 0.01)) / (time_vals[-1] - time_vals[0]),  # mu 
-        np.min(y_data),  # X0 
-        1.1 * np.max(y_data)  # K (carrying capacity)
+        _mu_guess(y_data, time_vals),  # mu
+        _x0_guess(y_data),  # X0
+        _scaled_max(y_data, 1.1)  # K (carrying capacity)
     ],
     "Baranyi Growth": lambda y_data, time_vals: [
-        np.min(y_data),  # X0
-        np.log(y_data[-1] / max(y_data[0], 0.01)) / (time_vals[-1] - time_vals[0]),  # mu
+        _x0_guess(y_data),  # X0
+        _mu_guess(y_data, time_vals),  # mu
         0.1  # q0 - simplified
     ],
     "Lag-Exponential-Saturation Growth": lambda y_data, time_vals: [
-        np.log(y_data[-1] / max(y_data[0], 0.01)) / (time_vals[-1] - time_vals[0]),  # mu
-        np.min(y_data),  # X0
+        _mu_guess(y_data, time_vals),  # mu
+        _x0_guess(y_data),  # X0
         0.1,  # q0
-        1.2 * np.max(y_data)  # K
+        _scaled_max(y_data, 1.2)  # K
     ],
     "Gompertz Growth": lambda y_data, time_vals: [
-        1.2 * np.max(y_data),  # A (asymptote)
+        _scaled_max(y_data, 1.2),  # A (asymptote)
         0.5,  # B (growth rate coefficient)
         0.3 * (time_vals[-1] - time_vals[0])  # C (inflection point time)
     ],
     "Power Law": lambda y_data, time_vals: [
         0.1,  # a
         0.5,  # n
-        np.min(y_data)  # b
+        _x0_guess(y_data)  # b
     ]
 }
 
